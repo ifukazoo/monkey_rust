@@ -1,13 +1,19 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::fmt::Debug;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Default)]
 pub struct Token {
     pub t_type: TokenType,
     pub literal: String,
 }
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "type:{},literal:{}", self.t_type, self.literal)
+    }
+}
 
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[derive(PartialEq, Copy, Clone, Debug, Eq, Hash)]
 pub enum TokenType {
     ILLEGAL,
     EOF,
@@ -42,6 +48,17 @@ pub enum TokenType {
     TRUE,
     FALSE,
     RETURN,
+}
+impl fmt::Display for TokenType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", *self)
+    }
+}
+
+impl Default for TokenType {
+    fn default() -> Self {
+        TokenType::EOF
+    }
 }
 
 lazy_static! {

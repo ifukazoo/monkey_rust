@@ -1,5 +1,6 @@
+use super::ast::*;
 use super::lexer::*;
-use super::token::*;
+use super::parser::*;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::BufWriter;
@@ -19,13 +20,16 @@ pub fn start<R: Read, W: Write>(mut reader: BufReader<R>, mut writer: BufWriter<
             break;
         }
         let mut l = Lexer::new(&line);
-        loop {
-            let t = l.next_token();
-            if t.t_type == TokenType::EOF {
-                break;
+        let mut p = Parser::new(&mut l);
+        let program = p.parse_program();
+        if p.errors().len() != 0 {
+            eprintln!("parser has {} errors", p.errors().len());
+            for msg in p.errors() {
+                eprintln!("parser error: {}", msg);
             }
-            writer.write_fmt(format_args!("{:?}\n", t))?;
+            continue;
         }
+        writer.write(program.to_string().as_bytes())?;
     }
     Ok(())
 }
