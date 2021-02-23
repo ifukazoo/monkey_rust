@@ -1,23 +1,9 @@
-use std::collections::HashMap;
 use std::fmt;
-use std::fmt::Debug;
 
-#[derive(Debug, Clone, Default)]
-pub struct Token {
-    pub t_type: TokenType,
-    pub literal: String,
-}
-impl fmt::Display for Token {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "type:{},literal:{}", self.t_type, self.literal)
-    }
-}
-
-#[derive(PartialEq, Copy, Clone, Debug, Eq, Hash)]
-pub enum TokenType {
+/// Token種別
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum TokenKind {
     ILLEGAL,
-    EOF,
-
     IDENT,
     INT,
 
@@ -49,35 +35,52 @@ pub enum TokenType {
     FALSE,
     RETURN,
 }
-impl fmt::Display for TokenType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", *self)
+
+/// 位置情報
+/// * (開始位置, 終了位置+1) を表す
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Location(usize, usize);
+
+impl fmt::Display for Location {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}-{}", self.0, self.1)
     }
 }
 
-impl Default for TokenType {
-    fn default() -> Self {
-        TokenType::EOF
+/// トークン
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Token {
+    /// 種別
+    pub kind: TokenKind,
+    /// トークンの開始リテラル
+    pub literal: String,
+    /// 入力文字中の位置
+    pub loc: Location,
+}
+
+impl Token {
+    pub fn new(kind: TokenKind, literal: String, start: usize, end: usize) -> Self {
+        Self {
+            kind,
+            literal,
+            loc: Location(start, end),
+        }
+    }
+    pub fn location(&self) -> (usize, usize) {
+        (*&self.loc.0, *&self.loc.1)
     }
 }
 
-lazy_static! {
-    static ref KEY_WORDS: HashMap<&'static str, TokenType> = {
-        let mut map = HashMap::new();
-        map.insert("let", TokenType::LET);
-        map.insert("fn", TokenType::FUNCTION);
-        map.insert("if", TokenType::IF);
-        map.insert("else", TokenType::ELSE);
-        map.insert("true", TokenType::TRUE);
-        map.insert("false", TokenType::FALSE);
-        map.insert("return", TokenType::RETURN);
-        map
-    };
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{{{:?},{}}}", self.kind, self.loc)
+    }
 }
 
-pub fn lookup_ident(ident: &str) -> TokenType {
-    match KEY_WORDS.get(ident) {
-        Some(t) => *t,
-        None => TokenType::IDENT,
-    }
+#[test]
+fn test_disp() {
+    assert_eq!(
+        r#"{IF,0-1}"#,
+        format!("{}", Token::new(TokenKind::IF, "if".to_string(), 0, 1))
+    );
 }

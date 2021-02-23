@@ -1,8 +1,10 @@
-#[macro_use]
-extern crate lazy_static;
-
 mod ast;
+mod env;
+pub mod error;
+mod eval;
+pub mod interpreter;
 mod lexer;
+mod object;
 mod parser;
 pub mod repl;
 mod token;

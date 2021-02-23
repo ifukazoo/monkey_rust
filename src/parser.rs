@@ -1,768 +1,546 @@
+use super::ast::Expression::*;
+use super::ast::Program;
+use super::ast::Statement::*;
 use super::ast::*;
-use super::lexer::*;
-use super::token::*;
+use super::lexer::LexResult;
+use super::token::{Token, TokenKind, TokenKind::*};
+use lazy_static::lazy_static;
 use std::collections::HashMap;
+use std::fmt;
+use std::iter::Peekable;
 
-#[derive(PartialEq, PartialOrd, Copy, Clone, Debug, Eq)]
-enum Precedence {
+/// 演算子優先度
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
+enum Priority {
     LOWEST,
-    // ==
     EQUALS,
-    // > or <
     LESSGREATER,
-    // +
     SUM,
-    // *
     PRODUCT,
-    // -X or !X
     PREFIX,
-    // myFunction(X)
     CALL,
 }
 
-type PrefixParser<'a> = fn(selff: &mut Parser<'a>) -> Option<Box<dyn Expression>>;
-type InfixParser<'a> =
-    fn(selff: &mut Parser<'a>, Box<dyn Expression>) -> Option<Box<dyn Expression>>;
+// トークンの優先度表
+lazy_static! {
+    static ref PRIORITY: HashMap<TokenKind, Priority> = {
+        let mut priority = HashMap::new();
+        // =, !=
+        priority.insert(TokenKind::EQ, Priority::EQUALS);
+        priority.insert(TokenKind::NOTEQ, Priority::EQUALS);
 
-pub struct Parser<'a> {
-    l: &'a mut Lexer<'a>,
-    // カーソル地点のトークン
-    cur_token: Token,
-    // カーソル地点の次のトークン
-    peek_token: Token,
-    errors: Vec<String>,
-    prefix_parsers: HashMap<TokenType, PrefixParser<'a>>,
-    infix_parsers: HashMap<TokenType, InfixParser<'a>>,
-    precedences: HashMap<TokenType, Precedence>,
+        // >, <
+        priority.insert(TokenKind::GT, Priority::LESSGREATER);
+        priority.insert(TokenKind::LT, Priority::LESSGREATER);
+
+        // -, +
+        priority.insert(TokenKind::PLUS, Priority::SUM);
+        priority.insert(TokenKind::MINUS, Priority::SUM);
+
+        // *, /
+        priority.insert(TokenKind::ASTERISK, Priority::PRODUCT);
+        priority.insert(TokenKind::SLASH, Priority::PRODUCT);
+
+        // xxx(
+        priority.insert(TokenKind::LPAREN, Priority::CALL);
+
+        priority
+    };
 }
 
-impl<'a> Parser<'a> {
-    pub fn new(lex: &'a mut Lexer<'a>) -> Parser<'a> {
-        let mut p = Parser {
-            l: lex,
-            cur_token: Default::default(),
-            peek_token: Default::default(),
-            errors: Default::default(),
-            prefix_parsers: HashMap::new(),
-            infix_parsers: HashMap::new(),
-            precedences: HashMap::new(),
-        };
-        p.register_prefix();
-        p.register_infix();
-        p.register_precedence();
+/// パースエラー
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ParseError {
+    /// 不正なトークン
+    IllegalToken(Token),
+    /// 予期していないトークン
+    UnexpectedToken(Token),
+    /// 予期せぬ入力終了
+    UnexpectedEOF,
+}
 
-        p.next_token();
-        p.next_token();
-        p
-    }
-    pub fn errors(&self) -> &[String] {
-        &self.errors
-    }
-    fn next_token(&mut self) {
-        self.cur_token = self.peek_token.clone();
-        self.peek_token = self.l.next_token().clone();
-    }
-    pub fn parse_program(&mut self) -> Box<Program> {
-        let mut statements = vec![];
-        while !self.cur_token_is(TokenType::EOF) {
-            match self.parse_statement() {
-                Some(s) => statements.push(s),
-                None => {}
-            }
-            self.next_token();
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::IllegalToken(t) => write!(f, "illegal token `{}`({})", t.literal, t.loc),
+            Self::UnexpectedToken(t) => write!(f, "illegal token `{}`({})", t.literal, t.loc),
+            Self::UnexpectedEOF => write!(f, "unexpected eof"),
         }
-        Box::new(Program { statements })
-    }
-    fn parse_statement(&mut self) -> Option<Box<dyn Statement>> {
-        match self.cur_token.t_type {
-            TokenType::LET => self.parse_letstatement(),
-            TokenType::RETURN => self.parse_returnstatement(),
-            _ => self.parse_expression_statement(),
-        }
-    }
-    // let 文
-    fn parse_letstatement(&mut self) -> Option<Box<dyn Statement>> {
-        // let x = 5;
-        // ^
-        let token = self.cur_token.clone();
-        if !self.expect_peek(TokenType::IDENT) {
-            return None;
-        }
-        // let x = 5;
-        //     ^
-        let name = Identifier {
-            token: self.cur_token.clone(),
-            value: self.cur_token.literal.to_string(),
-        };
-        if !self.expect_peek(TokenType::ASSIGN) {
-            return None;
-        }
-        // let x = 5;
-        //       ^
-        self.next_token();
-        // let x = 5;
-        //         ^
-        let value = self.parse_expression(Precedence::LOWEST);
-        // セミコロンまで刈り取り
-        while !self.cur_token_is(TokenType::SEMICOLON) {
-            self.next_token();
-        }
-        match value {
-            Some(value) => Some(Box::new(LetStatement { token, name, value })),
-            None => None,
-        }
-    }
-    // return 文
-    fn parse_returnstatement(&mut self) -> Option<Box<dyn Statement>> {
-        // return 5;
-        // ^
-        let token = self.cur_token.clone();
-        self.next_token();
-        // return 5;
-        //        ^
-        let value = self.parse_expression(Precedence::LOWEST);
-        // セミコロンまで刈り取り
-        while !self.cur_token_is(TokenType::SEMICOLON) {
-            self.next_token();
-        }
-        match value {
-            Some(value) => Some(Box::new(ReturnStatement { token, value })),
-            None => None,
-        }
-    }
-    // 式文
-    fn parse_expression_statement(&mut self) -> Option<Box<dyn Statement>> {
-        let token = self.cur_token.clone();
-        let exp = self.parse_expression(Precedence::LOWEST);
-
-        // セミコロンまで刈り取り
-        if self.peek_token_is(TokenType::SEMICOLON) {
-            self.next_token();
-        }
-        match exp {
-            Some(exp) => Some(Box::new(ExpressionStatement { token, exp })),
-            None => None,
-        }
-    }
-
-    // 式
-    fn parse_expression(&mut self, precedence: Precedence) -> Option<Box<dyn Expression>> {
-        let prefix_parser = self.get_prefix_parser()?;
-        let mut leftexp = prefix_parser(self)?;
-
-        while !self.peek_token_is(TokenType::SEMICOLON) && precedence < self.peek_precedence() {
-            self.next_token();
-            let parser = self.get_infix_parser()?;
-            leftexp = parser(self, leftexp)?;
-        }
-        Some(leftexp)
-    }
-
-    // グループ化された式
-    fn parse_grouped_expression(&mut self) -> Option<Box<dyn Expression>> {
-        // (exp)
-        // ^
-        self.next_token();
-        // (exp)
-        //  ^
-        let exp = self.parse_expression(Precedence::LOWEST)?;
-
-        if self.expect_peek(TokenType::RPAREN) {
-            Some(exp)
-        } else {
-            None
-        }
-    }
-
-    // ブロック文
-    fn parse_block_statement(&mut self) -> Option<Box<BlockStatement>> {
-        // { exp }
-        // ^
-        let token = self.cur_token.clone();
-        self.next_token();
-        // { exp }
-        //   ^
-        let mut statements: Vec<Box<dyn Statement>> = vec![];
-        while !self.cur_token_is(TokenType::RBRACE) && !self.cur_token_is(TokenType::EOF) {
-            let stmt = self.parse_statement()?;
-            statements.push(stmt);
-            self.next_token();
-        }
-        Some(Box::new(BlockStatement { token, statements }))
-    }
-
-    // if 式
-    fn parse_if_expression(&mut self) -> Option<Box<dyn Expression>> {
-        // if (x < y) { x }
-        // ^
-        let token = self.cur_token.clone();
-        if !self.expect_peek(TokenType::LPAREN) {
-            return None;
-        }
-        // if (x < y) { x }
-        //    ^
-        self.next_token();
-        // if (x < y) { x }
-        //     ^
-        let condition = self.parse_expression(Precedence::LOWEST)?;
-        // if (x < y) { x }
-        //         ^
-        if !self.expect_peek(TokenType::RPAREN) {
-            return None;
-        }
-        // if (x < y) { x }
-        //          ^
-        if !self.expect_peek(TokenType::LBRACE) {
-            return None;
-        }
-        // if (x < y) { x }
-        //            ^
-        let consequence = self.parse_block_statement()?;
-        // if (x < y) { x } else { y }
-        //                ^
-        if self.peek_token_is(TokenType::ELSE) {
-            self.next_token();
-            // if (x < y) { x } else { y }
-            //                  ^
-            if !self.expect_peek(TokenType::LBRACE) {
-                return None;
-            }
-            // if (x < y) { x } else { y }
-            //                       ^
-            let alter = self.parse_block_statement()?;
-            Some(Box::new(IfExpression {
-                token,
-                condition,
-                consequence,
-                alternarive: Some(alter),
-            }))
-        } else {
-            Some(Box::new(IfExpression {
-                token,
-                condition,
-                consequence,
-                alternarive: None,
-            }))
-        }
-    }
-
-    // 関数リテラル 式
-    fn parse_funtionliteral_expression(&mut self) -> Option<Box<dyn Expression>> {
-        // fn (x , y) { x+y; }
-        // ^
-        let token = self.cur_token.clone();
-        if !self.expect_peek(TokenType::LPAREN) {
-            return None;
-        }
-        // fn (x , y) { x+y; }
-        //    ^
-        self.next_token();
-        // fn (x , y) { x+y; }
-        //     ^
-        let params = self.parse_function_params();
-        // fn (x , y) { x+y; }
-        //          ^
-
-        if !self.expect_peek(TokenType::LBRACE) {
-            return None;
-        }
-
-        let body = self.parse_block_statement()?;
-        Some(Box::new(FunctionLiteral {
-            token,
-            params,
-            body,
-        }))
-    }
-
-    // ブーリアン
-    fn parse_boolean(&mut self) -> Option<Box<dyn Expression>> {
-        let token = self.cur_token.clone();
-        let value = match self.cur_token.literal.as_str() {
-            "true" => true,
-            "false" => false,
-            _ => {
-                let msg = format!("could not parse {} boolean", token);
-                self.errors.push(msg);
-                return None;
-            }
-        };
-        Some(Box::new(Boolean { token, value }))
-    }
-
-    // 識別子 変数
-    fn parse_identifier(&mut self) -> Option<Box<dyn Expression>> {
-        Some(Box::new(Identifier {
-            token: self.cur_token.clone(),
-            value: self.cur_token.literal.clone(),
-        }))
-    }
-
-    // 仮引数
-    fn parse_function_params(&mut self) -> Vec<Box<Identifier>> {
-        let mut params: Vec<Box<Identifier>> = vec![];
-        while !self.cur_token_is(TokenType::RPAREN) {
-            params.push(Box::new(Identifier {
-                token: self.cur_token.clone(),
-                value: self.cur_token.literal.clone(),
-            }));
-            if self.peek_token_is(TokenType::COMMA) {
-                self.next_token();
-            }
-            self.next_token();
-        }
-        params
-    }
-
-    // 整数リテラル
-    fn parse_integerliteral(&mut self) -> Option<Box<dyn Expression>> {
-        match self.cur_token.literal.parse::<i64>() {
-            Ok(n) => Some(Box::new(IntegerLiteral {
-                token: self.cur_token.clone(),
-                value: n,
-            })),
-            Err(_) => {
-                let msg = format!("could not parse {} integer", self.cur_token.literal);
-                self.errors.push(msg);
-                None
-            }
-        }
-    }
-    // 前置演算子 ! or -
-    fn parse_prefix_expression(&mut self) -> Option<Box<dyn Expression>> {
-        let token = self.cur_token.clone();
-        let operator = self.cur_token.literal.to_string();
-        self.next_token();
-        let right = self.parse_expression(Precedence::PREFIX)?;
-        Some(Box::new(PrefixExpression {
-            token,
-            operator,
-            right,
-        }))
-    }
-    // 中間演算子式
-    fn parse_infix_expression(&mut self, left: Box<dyn Expression>) -> Option<Box<dyn Expression>> {
-        // exp op exp;
-        //     ^
-        let token = self.cur_token.clone();
-        let operator = self.cur_token.literal.to_string();
-        // operatorの優先度を取る
-        let precedence = self.cur_precedence();
-
-        self.next_token();
-        // exp op exp;
-        //        ^
-        let right = self.parse_expression(precedence)?;
-        Some(Box::new(InfixExpression {
-            token,
-            left,
-            operator,
-            right,
-        }))
-    }
-
-    // 関数呼び出し式
-    fn parse_call_expression(&mut self, left: Box<dyn Expression>) -> Option<Box<dyn Expression>> {
-        // left はもうparse済みで呼ばれる
-        // (identifier or func literal) (arg , arg);
-        //                              ^
-        let token = self.cur_token.clone();
-        let func = left;
-        let mut args = vec![];
-        self.next_token();
-        while !self.cur_token_is(TokenType::RPAREN) {
-            let arg = self.parse_expression(Precedence::LOWEST)?;
-            args.push(arg);
-            // (identifier or func literal) (arg , arg);
-            // (identifier or func literal) (arg);
-            //                                 ^
-            if self.peek_token_is(TokenType::COMMA) {
-                self.next_token();
-                // (identifier or func literal) (arg , arg);
-                //                                   ^
-            }
-            self.next_token();
-            // (identifier or func literal) (arg , arg);
-            // (identifier or func literal) (arg   );
-            //                                     ^
-        }
-        Some(Box::new(CallExpression { token, func, args }))
-    }
-
-    fn cur_token_is(&self, t: TokenType) -> bool {
-        self.cur_token.t_type == t
-    }
-    fn peek_token_is(&self, t: TokenType) -> bool {
-        self.peek_token.t_type == t
-    }
-    // 期待値だった場合, トークンを進める.
-    fn expect_peek(&mut self, t: TokenType) -> bool {
-        if self.peek_token_is(t) {
-            self.next_token();
-            true
-        } else {
-            self.peek_error(t);
-            false
-        }
-    }
-    fn peek_error(&mut self, t: TokenType) {
-        let msg = format!(
-            "expected next token to be {}, got {} insted",
-            t, self.peek_token.t_type
-        );
-        self.errors.push(msg);
-    }
-    // 次の演算子の優先度
-    fn peek_precedence(&mut self) -> Precedence {
-        match self.precedences.get(&self.peek_token.t_type) {
-            Some(p) => *p,
-            None => Precedence::LOWEST,
-        }
-    }
-    // 直下の演算子の優先度
-    fn cur_precedence(&mut self) -> Precedence {
-        match self.precedences.get(&self.cur_token.t_type) {
-            Some(p) => *p,
-            None => Precedence::LOWEST,
-        }
-    }
-    fn register_prefix(&mut self) {
-        self.prefix_parsers
-            .insert(TokenType::IDENT, Parser::parse_identifier);
-        self.prefix_parsers
-            .insert(TokenType::INT, Parser::parse_integerliteral);
-        self.prefix_parsers
-            .insert(TokenType::BANG, Parser::parse_prefix_expression);
-        self.prefix_parsers
-            .insert(TokenType::MINUS, Parser::parse_prefix_expression);
-        self.prefix_parsers
-            .insert(TokenType::TRUE, Parser::parse_boolean);
-        self.prefix_parsers
-            .insert(TokenType::FALSE, Parser::parse_boolean);
-        self.prefix_parsers
-            .insert(TokenType::LPAREN, Parser::parse_grouped_expression);
-        self.prefix_parsers
-            .insert(TokenType::IF, Parser::parse_if_expression);
-        self.prefix_parsers
-            .insert(TokenType::FUNCTION, Parser::parse_funtionliteral_expression);
-    }
-    fn get_prefix_parser(&mut self) -> Option<PrefixParser<'a>> {
-        match self.prefix_parsers.get(&self.cur_token.t_type) {
-            Some(p) => Some(*p),
-            None => {
-                let msg = format!(
-                    "no prefix parse function for {} found",
-                    self.cur_token.t_type
-                );
-                self.errors.push(msg);
-                None
-            }
-        }
-    }
-    fn register_infix(&mut self) {
-        self.infix_parsers
-            .insert(TokenType::PLUS, Parser::parse_infix_expression);
-        self.infix_parsers
-            .insert(TokenType::MINUS, Parser::parse_infix_expression);
-        self.infix_parsers
-            .insert(TokenType::ASTERISK, Parser::parse_infix_expression);
-        self.infix_parsers
-            .insert(TokenType::SLASH, Parser::parse_infix_expression);
-        self.infix_parsers
-            .insert(TokenType::GT, Parser::parse_infix_expression);
-        self.infix_parsers
-            .insert(TokenType::LT, Parser::parse_infix_expression);
-        self.infix_parsers
-            .insert(TokenType::EQ, Parser::parse_infix_expression);
-        self.infix_parsers
-            .insert(TokenType::NOTEQ, Parser::parse_infix_expression);
-        self.infix_parsers
-            .insert(TokenType::LPAREN, Parser::parse_call_expression);
-    }
-    fn get_infix_parser(&mut self) -> Option<InfixParser<'a>> {
-        match self.infix_parsers.get(&self.cur_token.t_type) {
-            Some(p) => Some(*p),
-            None => {
-                let msg = format!(
-                    "no infix parse function for {} found",
-                    self.cur_token.t_type
-                );
-                self.errors.push(msg);
-                None
-            }
-        }
-    }
-    fn register_precedence(&mut self) {
-        self.precedences.insert(TokenType::EQ, Precedence::EQUALS);
-        self.precedences
-            .insert(TokenType::NOTEQ, Precedence::EQUALS);
-        self.precedences
-            .insert(TokenType::LT, Precedence::LESSGREATER);
-        self.precedences
-            .insert(TokenType::GT, Precedence::LESSGREATER);
-        self.precedences.insert(TokenType::PLUS, Precedence::SUM);
-        self.precedences.insert(TokenType::MINUS, Precedence::SUM);
-        self.precedences
-            .insert(TokenType::ASTERISK, Precedence::PRODUCT);
-        self.precedences
-            .insert(TokenType::SLASH, Precedence::PRODUCT);
-        self.precedences.insert(TokenType::LPAREN, Precedence::CALL);
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_call_expression() {
-        let input = String::from(
-            r#"
-             add(x + y, 2)
-             print()
-             show(abc)
-             fn (x, y) { x + y; }(x + y, 2)
-             "#,
-        );
-        let expects = vec![
-            "add((x+y),2)",
-            "print()",
-            "show(abc)",
-            "fn(x,y){(x+y)}((x+y),2)",
-        ];
-        let mut l = Lexer::new(&input);
-        let mut p = Parser::new(&mut l);
-        let program = p.parse_program();
-        check_parser_errors(&p);
-        assert_eq!(4, program.statements.len());
+pub fn parse_program(lex_result: LexResult) -> Result<Program, ParseError> {
+    let tokens = lex_result;
+    let mut tokens = tokens.into_iter().peekable();
 
-        for (i, statement) in program.statements.iter().enumerate() {
-            assert_eq!(expects[i], statement.to_string());
+    let mut program = vec![];
+    while let Some(_) = tokens.peek() {
+        let statement = parse_statement(&mut tokens)?;
+        match statement {
+            Statement::Empty => {}
+            _ => program.push(statement),
         }
     }
-    #[test]
-    fn test_funcliteral_expression() {
-        let input = String::from(
-            r#"
-             fn(x, y) { x + y; }
-             fn() { x + y; }
-             "#,
-        );
-        let expects = vec!["fn(x,y){(x+y)}", "fn(){(x+y)}"];
-        let mut l = Lexer::new(&input);
-        let mut p = Parser::new(&mut l);
-        let program = p.parse_program();
-        check_parser_errors(&p);
-        assert_eq!(2, program.statements.len());
+    Ok(program)
+}
 
-        for (i, statement) in program.statements.iter().enumerate() {
-            assert_eq!(expects[i], statement.to_string());
+fn parse_statement<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Statement, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    match peek_kind(tokens) {
+        None => Err(ParseError::UnexpectedEOF),
+        Some(LET) => parse_let_stmt(tokens),
+        Some(RETURN) => parse_return_stmt(tokens),
+        Some(IF) => parse_if_stmt(tokens),
+        Some(LBRACE) => parse_block_stmt(tokens),
+        Some(SEMICOLON) => {
+            tokens.next().unwrap();
+            Ok(Empty)
+        }
+        Some(_) => {
+            let exp = parse_exp(tokens, Priority::LOWEST)?;
+            expect_next(tokens, TokenKind::SEMICOLON)?;
+            Ok(Exp(exp))
         }
     }
-    #[test]
-    fn test_if_expression() {
-        let input = String::from(
-            r#"
-             if (x <y) { x }
-             if ( x < y ) { x }else {y}
-             "#,
-        );
-        let expects = vec!["if(x<y){x}", "if(x<y){x}else{y}"];
-        let mut l = Lexer::new(&input);
-        let mut p = Parser::new(&mut l);
-        let program = p.parse_program();
-        check_parser_errors(&p);
-        assert_eq!(2, program.statements.len());
+}
 
-        for (i, statement) in program.statements.iter().enumerate() {
-            assert_eq!(expects[i], statement.to_string());
-        }
-    }
-    #[test]
-    fn test_grouped_expression() {
-        let input = String::from(
-            r#"
-             (1 + (2 + 3) + 4);
-             ( 5 +5) * 2;
-            2 / (5 + 5);
-            -(5+  5);
-            !(true ==  true);
-             "#,
-        );
-        let expects = vec![
-            "((1+(2+3))+4)",
-            "((5+5)*2)",
-            "(2/(5+5))",
-            "(-(5+5))",
-            "(!(true==true))",
-        ];
-        let mut l = Lexer::new(&input);
-        let mut p = Parser::new(&mut l);
-        let program = p.parse_program();
-        check_parser_errors(&p);
-        assert_eq!(5, program.statements.len());
+fn parse_let_stmt<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Statement, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    let let_token = expect_next(tokens, LET)?;
+    let ident_token = expect_next(tokens, IDENT)?;
+    let ident = Identifier::new(ident_token);
+    expect_next(tokens, ASSIGN)?;
+    let exp = parse_exp(tokens, Priority::LOWEST)?;
+    expect_next(tokens, TokenKind::SEMICOLON)?;
 
-        for (i, statement) in program.statements.iter().enumerate() {
-            assert_eq!(expects[i], statement.to_string());
-        }
-    }
-    #[test]
-    fn test_boolean_expression() {
-        let input = String::from(
-            r#"
-             true;
-             false;
-             "#,
-        );
-        let mut l = Lexer::new(&input);
-        let mut p = Parser::new(&mut l);
-        let program = p.parse_program();
-        check_parser_errors(&p);
-        assert_eq!(2, program.statements.len());
+    Ok(Let(LetStatement::new(let_token, ident, exp)))
+}
 
-        let tests = vec!["true", "false"];
-        for (i, statement) in program.statements.iter().enumerate() {
-            assert_eq!(tests[i], statement.to_string());
-        }
-    }
-    #[test]
-    fn test_infix_expression() {
-        let input = String::from(
-            r#"
-             5 + 1 ;
-             5-5 ;
-             5*5;
-             5 /5;
-             5> 5;
-             5 < 5;
-             5 == 5;
-             5 != 5;
-             "#,
-        );
-        let mut l = Lexer::new(&input);
-        let mut p = Parser::new(&mut l);
-        let program = p.parse_program();
-        check_parser_errors(&p);
-        assert_eq!(8, program.statements.len());
+fn parse_return_stmt<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Statement, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    expect_next(tokens, RETURN)?;
+    let exp = parse_exp(tokens, Priority::LOWEST)?;
+    expect_next(tokens, TokenKind::SEMICOLON)?;
 
-        let tests = vec![
-            "(5+1)", "(5-5)", "(5*5)", "(5/5)", "(5>5)", "(5<5)", "(5==5)", "(5!=5)",
-        ];
-        for (i, statement) in program.statements.iter().enumerate() {
-            assert_eq!(tests[i], statement.to_string());
-        }
-    }
-    #[test]
-    fn test_prefix_expression() {
-        let input = String::from(
-            r#"
-             - 1 ;
-             !foobar;"#,
-        );
-        let mut l = Lexer::new(&input);
-        let mut p = Parser::new(&mut l);
-        let program = p.parse_program();
-        check_parser_errors(&p);
-        assert_eq!(2, program.statements.len());
+    Ok(Return(exp))
+}
 
-        let tests = vec!["(-1)", "(!foobar)"];
-        for (i, statement) in program.statements.iter().enumerate() {
-            assert_eq!(tests[i], statement.to_string());
-        }
-    }
-    #[test]
-    fn test_identifier_expression() {
-        let input = String::from(
-            r#"
-             foobar ;
-             piyopiyo;"#,
-        );
-        let mut l = Lexer::new(&input);
-        let mut p = Parser::new(&mut l);
-        let program = p.parse_program();
-        check_parser_errors(&p);
-        assert_eq!(2, program.statements.len());
+fn parse_if_stmt<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Statement, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    let iftoken = expect_next(tokens, IF)?;
 
-        let tests = vec!["foobar", "piyopiyo"];
-        for (i, statement) in program.statements.iter().enumerate() {
-            assert_eq!(tests[i], statement.to_string());
-        }
-    }
-    #[test]
-    fn test_integerliteral_expression() {
-        let input = String::from(
-            r#"
-             1 ;
-             4192;
-             "#,
-        );
-        let mut l = Lexer::new(&input);
-        let mut p = Parser::new(&mut l);
-        let program = p.parse_program();
-        check_parser_errors(&p);
-        assert_eq!(2, program.statements.len());
+    expect_next(tokens, LPAREN)?;
+    let cond = parse_exp(tokens, Priority::LOWEST)?;
+    expect_next(tokens, RPAREN)?;
 
-        let tests = vec!["1", "4192"];
-        for (i, statement) in program.statements.iter().enumerate() {
-            assert_eq!(tests[i], statement.to_string());
-        }
-    }
-    #[test]
-    fn test_letstatements() {
-        let input = String::from(
-            r#"
-             let x = 5;
-             let y = 15;
-             let foobar = 838383;
-                         "#,
-            // peek_errorのテスト
-            //             r#"
-            //  let x 5;
-            //  let = 15;
-            //  let 838383;
-            //              "#,
-        );
-        let mut l = Lexer::new(&input);
-        let mut p = Parser::new(&mut l);
-        let program = p.parse_program();
-        check_parser_errors(&p);
-        assert_eq!(3, program.statements.len());
+    // then
+    let cons_block = parse_block(tokens)?;
 
-        let tests = vec!["let x = 5;", "let y = 15;", "let foobar = 838383;"];
-        for (i, statement) in program.statements.iter().enumerate() {
-            test_letstatements_(statement, tests[i]);
-        }
+    // alt
+    if let Some(TokenKind::ELSE) = peek_kind(tokens) {
+        expect_next(tokens, ELSE)?;
+        let alt_block = parse_block(tokens)?;
+        Ok(If(IfStatement::new(
+            iftoken,
+            cond,
+            cons_block.statements,
+            Some(alt_block.statements),
+        )))
+    } else {
+        Ok(If(IfStatement::new(
+            iftoken,
+            cond,
+            cons_block.statements,
+            None,
+        )))
     }
-    #[test]
-    fn test_returnstatements() {
-        let input = String::from(
-            r#"
-             return 5;
-             return  15;
-                         "#,
-        );
-        let mut l = Lexer::new(&input);
-        let mut p = Parser::new(&mut l);
-        let program = p.parse_program();
-        check_parser_errors(&p);
-        assert_eq!(2, program.statements.len());
+}
 
-        let tests = vec!["return 5;", "return 15;"];
-        for (i, statement) in program.statements.iter().enumerate() {
-            test_letstatements_(statement, tests[i]);
+fn parse_block_stmt<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Statement, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    let block = parse_block(tokens)?;
+    Ok(Block(block))
+}
+
+fn parse_exp<Tokens>(
+    tokens: &mut Peekable<Tokens>,
+    cur_pri: Priority,
+) -> Result<Expression, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    let mut left = match peek_kind(tokens) {
+        Some(PLUS) | Some(MINUS) | Some(BANG) => parse_prefix_exp(tokens),
+        Some(INT) => parse_int_exp(tokens),
+        Some(TRUE) => parse_bool_exp(tokens, TRUE),
+        Some(FALSE) => parse_bool_exp(tokens, FALSE),
+        Some(IDENT) => parse_ident_exp(tokens),
+        Some(LPAREN) => parse_group_exp(tokens),
+        Some(FUNCTION) => parse_function_exp(tokens),
+        Some(ILLEGAL) => return Err(ParseError::IllegalToken(tokens.next().unwrap())),
+        Some(_) => return Err(ParseError::UnexpectedToken(tokens.next().unwrap())),
+        None => return Err(ParseError::UnexpectedEOF),
+    }?;
+
+    while let Some(next_kind) = peek_kind(tokens) {
+        // 文の終わり
+        if next_kind == SEMICOLON {
+            break;
+        }
+        // 次のトークンとの結合度をとって, 次のトークンとの結合度が高い場合は先に進む.
+        let next_pri = get_priority(next_kind);
+        if next_pri <= cur_pri {
+            break;
+        }
+        left = match next_kind {
+            LPAREN => parse_call_exp(tokens, left)?,
+            PLUS | MINUS | ASTERISK | SLASH | GT | LT | EQ | NOTEQ => {
+                parse_infix_exp(tokens, left, next_pri)?
+            }
+            _ => return Err(ParseError::UnexpectedToken(tokens.next().unwrap())),
         }
     }
-    //--------------------------------------------------------------------------------
-    fn test_letstatements_(stmt: &Box<dyn Statement>, string: &str) {
-        assert_eq!(string, stmt.to_string());
+    Ok(left)
+}
+
+fn parse_prefix_exp<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Expression, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    // +, -, !
+    let operator = tokens.next().unwrap();
+    // 式を読む
+    let right = parse_exp(tokens, Priority::PREFIX)?;
+
+    Ok(Prefix(PrefixExpression::new(operator, right)))
+}
+
+fn parse_int_exp<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Expression, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    let token = expect_next(tokens, INT)?;
+    Ok(Int(IntegerLiteral::new(token)))
+}
+
+fn parse_bool_exp<Tokens>(
+    tokens: &mut Peekable<Tokens>,
+    expect: TokenKind,
+) -> Result<Expression, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    // `true` or `false`
+    let token = expect_next(tokens, expect)?;
+    Ok(Bool(BoolLiteral::new(token)))
+}
+
+fn parse_ident_exp<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Expression, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    let token = expect_next(tokens, IDENT)?;
+    Ok(Ident(Identifier::new(token)))
+}
+
+fn parse_group_exp<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Expression, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    expect_next(tokens, LPAREN)?;
+    let exp = parse_exp(tokens, Priority::LOWEST)?;
+    expect_next(tokens, RPAREN)?;
+    Ok(exp)
+}
+
+fn parse_function_exp<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Expression, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    // `fn`の刈り取り
+    let token = expect_next(tokens, FUNCTION)?;
+
+    // `(`の刈り取り
+    expect_next(tokens, LPAREN)?;
+
+    let params = parse_function_params(tokens)?;
+
+    // `)`の刈り取り
+    expect_next(tokens, RPAREN)?;
+
+    let block = parse_block(tokens)?;
+
+    Ok(Expression::Function(FunctionLiteral::new(
+        token,
+        params,
+        block.statements,
+    )))
+}
+
+fn parse_function_params<Tokens>(
+    tokens: &mut Peekable<Tokens>,
+) -> Result<Vec<Identifier>, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    let mut params = Vec::new();
+
+    while is_expected_peek(tokens, IDENT) {
+        let token = expect_next(tokens, IDENT)?;
+        let ident = Identifier::new(token);
+        params.push(ident);
+        if let Some(COMMA) = peek_kind(tokens) {
+            tokens.next().unwrap();
+        } else {
+            break;
+        }
+    }
+    Ok(params)
+}
+
+fn parse_call_exp<Tokens>(
+    tokens: &mut Peekable<Tokens>,
+    left: Expression,
+) -> Result<Expression, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    // `(`の刈り取り
+    let token = expect_next(tokens, LPAREN)?;
+
+    // 実引数の刈り取り
+    let args = parse_args(tokens)?;
+
+    // `)`の刈り取り
+    expect_next(tokens, RPAREN)?;
+
+    // left は identifier or 関数リテラル式
+    Ok(Call(CallFunction::new(token, left, args)))
+}
+
+fn parse_infix_exp<Tokens>(
+    tokens: &mut Peekable<Tokens>,
+    left: Expression,
+    pri: Priority,
+) -> Result<Expression, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    let operator = tokens.next().unwrap();
+    let right = parse_exp(tokens, pri)?;
+    Ok(Infix(InfixExpression::new(operator, left, right)))
+}
+
+fn parse_block<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<BlockStatement, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    // `{`の刈り取り
+    let token = expect_next(tokens, LBRACE)?;
+
+    let mut statements = Vec::new();
+
+    while !is_expected_peek(tokens, RBRACE) {
+        let stmt = parse_statement(tokens)?;
+        statements.push(stmt);
     }
 
-    fn check_parser_errors(p: &Parser) {
-        if p.errors().len() == 0 {
-            return;
-        }
-        eprintln!("parser has {} errors", p.errors().len());
-        for msg in p.errors() {
-            eprintln!("parser error: {}", msg);
+    // `}`を刈り取る
+    expect_next(tokens, RBRACE)?;
+
+    Ok(BlockStatement::new(token, statements))
+}
+
+fn parse_args<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Vec<Expression>, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    let mut args = Vec::new();
+
+    while !is_expected_peek(tokens, RPAREN) {
+        let exp = parse_exp(tokens, Priority::LOWEST)?;
+        args.push(exp);
+        if let Some(COMMA) = peek_kind(tokens) {
+            tokens.next().unwrap();
+        } else {
+            break;
         }
     }
+    Ok(args)
+}
+
+fn peek_kind<Tokens>(tokens: &mut Peekable<Tokens>) -> Option<TokenKind>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    tokens.peek().map(|token| token.kind)
+}
+
+// 次にくる予定のトークン種別を待ち受け
+fn expect_next<Tokens>(
+    tokens: &mut Peekable<Tokens>,
+    expected: TokenKind,
+) -> Result<Token, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    match peek_kind(tokens) {
+        None => Err(ParseError::UnexpectedEOF),
+        Some(kind) => {
+            if kind == expected {
+                Ok(tokens.next().unwrap())
+            } else {
+                Err(ParseError::UnexpectedToken(tokens.next().unwrap()))
+            }
+        }
+    }
+}
+
+fn is_expected_peek<Tokens>(tokens: &mut Peekable<Tokens>, expected: TokenKind) -> bool
+where
+    Tokens: Iterator<Item = Token>,
+{
+    if let Some(kind) = peek_kind(tokens) {
+        kind == expected
+    } else {
+        false
+    }
+}
+
+fn get_priority(kind: TokenKind) -> Priority {
+    match PRIORITY.get(&kind) {
+        Some(pri) => *pri,
+        None => Priority::LOWEST,
+    }
+}
+
+#[test]
+fn test_parse_ident() {
+    use super::lexer;
+    let inputs = vec![String::from("x"), String::from("result")];
+    let expected_tokens = inputs
+        .iter()
+        .map(|s| Token::new(TokenKind::IDENT, s.to_string(), 0, s.len()))
+        .collect::<Vec<Token>>();
+    for (i, _) in inputs.iter().enumerate() {
+        let expected_ast = Identifier::new(expected_tokens[i].clone());
+        let result = lexer::lex(&inputs[i]);
+        let ast = parse_ident_exp(&mut result.into_iter().peekable()).unwrap();
+        assert_eq!(ast, Ident(expected_ast));
+    }
+}
+
+#[test]
+fn test_parse_int() {
+    use super::lexer;
+    let inputs = vec![String::from("0"), String::from("12")];
+    let expected_tokens = inputs
+        .iter()
+        .map(|s| Token::new(TokenKind::INT, s.to_string(), 0, s.len()))
+        .collect::<Vec<Token>>();
+    for (i, _) in inputs.iter().enumerate() {
+        let expected_ast = IntegerLiteral::new(expected_tokens[i].clone());
+        let result = lexer::lex(&inputs[i]);
+        let ast = parse_int_exp(&mut result.into_iter().peekable()).unwrap();
+        assert_eq!(ast, Int(expected_ast));
+    }
+}
+
+#[test]
+fn test_parse_function() {
+    use super::lexer;
+    let input = String::from("fn(x, y) { x; } ");
+    let result = lexer::lex(&input);
+    let a = parse_function_exp(&mut result.into_iter().peekable()).unwrap();
+    match a {
+        Function(_) => {}
+        err => panic!(format!("test failed. reason [{:?}]", err)),
+    }
+}
+
+#[test]
+fn test_parse_call() {
+    use super::lexer;
+    let id_token = Token::new(TokenKind::IDENT, "function".to_string(), 0, 8);
+    let id_exp = Ident(Identifier::new(id_token));
+    let input = String::from("(5,6)");
+    let result = lexer::lex(&input);
+    let a = parse_call_exp(&mut result.into_iter().peekable(), id_exp).unwrap();
+    match a {
+        Call(_) => {}
+        err => panic!(format!("test failed. reason [{:?}]", err)),
+    }
+}
+
+#[test]
+fn test_parse() {
+    use super::lexer;
+    let input = String::from(
+        r#"
+    fn(x,y) { x; }(2,3);
+    "#,
+    );
+    parse_program(lexer::lex(&input)).unwrap();
+}
+
+#[test]
+fn test_parse_block() {
+    use super::lexer;
+    let input = String::from("{y; x; }");
+    let result = lexer::lex(&input);
+    parse_block(&mut result.into_iter().peekable()).unwrap();
+}
+
+#[test]
+fn test_parse_let() {
+    use super::lexer;
+    let input = String::from("let x = 0;");
+    let result = lexer::lex(&input);
+    parse_let_stmt(&mut result.into_iter().peekable()).unwrap();
+    parse_program(lexer::lex(&input)).unwrap();
+}
+
+#[test]
+fn test_parse_return() {
+    use super::lexer;
+    let input = String::from("return 1;");
+    let result = lexer::lex(&input);
+    parse_return_stmt(&mut result.into_iter().peekable()).unwrap();
+
+    parse_program(lexer::lex(&input)).unwrap();
+}
+
+#[test]
+fn test_parse_if() {
+    use super::lexer;
+    let input = String::from("if (true) { 1; } else { 2; }");
+    let result = lexer::lex(&input);
+    parse_program(result).unwrap();
+}
+
+#[test]
+fn test_parse_blockstmt() {
+    use super::lexer;
+    let input = String::from("{1;}");
+    let result = lexer::lex(&input);
+    parse_program(result).unwrap();
+}
+
+#[test]
+fn test_parse_empty() {
+    use super::lexer;
+    let input = String::from(";;;;");
+    let result = lexer::lex(&input);
+    let ast = parse_program(result).unwrap();
+    assert_eq!(0, ast.len());
 }

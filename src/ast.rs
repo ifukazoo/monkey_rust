@@ -1,280 +1,297 @@
-use super::token::*;
+use super::token::Token;
+use super::token::TokenKind;
 use std::fmt;
 
-//----------------------------------------
-pub trait Node {
-    fn token_literal(&self) -> &str;
-    fn to_string(&self) -> String;
+/// プログラム
+pub type Program = Vec<Statement>;
+
+/// 文
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Statement {
+    /// 空の文
+    Empty,
+    /// Let文
+    Let(LetStatement),
+    /// 式文
+    Exp(Expression),
+    /// return文
+    Return(Expression),
+    /// if文
+    If(IfStatement),
+    /// Block文
+    Block(BlockStatement),
 }
-//----------------------------------------
-pub trait Statement: Node {
-    fn statement_node(&self);
+
+/// 式
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Expression {
+    /// bool式
+    Bool(BoolLiteral),
+    /// 整数式
+    Int(IntegerLiteral),
+    /// 変数式
+    Ident(Identifier),
+    /// 関数式
+    Function(FunctionLiteral),
+    /// 関数呼び出し式
+    Call(CallFunction),
+    /// 前置演算子式
+    Prefix(PrefixExpression),
+    /// 中置演算子式
+    Infix(InfixExpression),
 }
-//----------------------------------------
-pub trait Expression: Node {
-    fn expression_node(&self);
+
+/// 二項演算
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum BinOp {
+    /// 'exp + exp'
+    Add,
+    /// 'exp - exp'
+    Sub,
+    /// 'exp * exp'
+    Mul,
+    /// 'exp / exp'
+    Div,
+    /// 'exp > exp'
+    Gt,
+    /// 'exp < exp'
+    Lt,
+    /// 'exp == exp'
+    Eq,
+    /// 'exp != exp'
+    NotEq,
 }
-impl fmt::Display for dyn Expression {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+impl fmt::Display for BinOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Add => write!(f, "+"),
+            Self::Sub => write!(f, "-"),
+            Self::Mul => write!(f, "*"),
+            Self::Div => write!(f, "/"),
+            Self::Gt => write!(f, ">"),
+            Self::Lt => write!(f, "<"),
+            Self::Eq => write!(f, "=="),
+            Self::NotEq => write!(f, "!="),
+        }
     }
 }
 
-//----------------------------------------
-pub struct Program {
-    pub statements: Vec<Box<dyn Statement>>,
+/// 単項演算
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum UnOp {
+    /// '+ exp'
+    Positive,
+    /// '- exp'
+    Negative,
+    /// '! exp'
+    Not,
 }
-impl Node for Program {
-    fn token_literal(&self) -> &str {
-        if self.statements.len() > 0 {
-            self.statements[0].token_literal()
-        } else {
-            ""
+impl fmt::Display for UnOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Positive => write!(f, "+"),
+            Self::Negative => write!(f, "-"),
+            Self::Not => write!(f, "!"),
         }
-    }
-    fn to_string(&self) -> String {
-        let mut sb = vec![];
-        for s in &self.statements {
-            sb.push(s.to_string());
-        }
-        sb.join("")
     }
 }
 
-//----------------------------------------
+/// 複文
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlockStatement {
+    token: Token,
+    pub statements: Vec<Statement>,
+}
+impl BlockStatement {
+    pub fn new(token: Token, statements: Vec<Statement>) -> Self {
+        BlockStatement { token, statements }
+    }
+}
+
+/// if文
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IfStatement {
+    token: Token,
+    pub cond: Box<Expression>,
+    pub cons: Vec<Statement>,
+    pub alt: Option<Vec<Statement>>,
+}
+impl IfStatement {
+    pub fn new(
+        token: Token,
+        cond: Expression,
+        cons: Vec<Statement>,
+        alt: Option<Vec<Statement>>,
+    ) -> Self {
+        Self {
+            token,
+            cond: Box::new(cond),
+            cons,
+            alt,
+        }
+    }
+}
+
+/// Let文
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LetStatement {
-    pub token: Token,
-    pub value: Box<dyn Expression>,
-    pub name: Identifier,
+    token: Token,
+    pub id: Identifier,
+    pub exp: Box<Expression>,
 }
-impl Node for LetStatement {
-    fn token_literal(&self) -> &str {
-        &self.token.literal
-    }
-    fn to_string(&self) -> String {
-        format!("{} {} = {};", self.token_literal(), self.name, self.value,)
-    }
-}
-impl Statement for LetStatement {
-    fn statement_node(&self) {}
-}
-//----------------------------------------
-pub struct ReturnStatement {
-    pub token: Token,
-    pub value: Box<dyn Expression>,
-}
-impl Node for ReturnStatement {
-    fn token_literal(&self) -> &str {
-        &self.token.literal
-    }
-    fn to_string(&self) -> String {
-        format!("{} {};", self.token_literal(), self.value)
-    }
-}
-impl Statement for ReturnStatement {
-    fn statement_node(&self) {}
-}
-
-//----------------------------------------
-pub struct ExpressionStatement {
-    pub token: Token,
-    pub exp: Box<dyn Expression>,
-}
-impl Node for ExpressionStatement {
-    fn token_literal(&self) -> &str {
-        &self.token.literal
-    }
-    fn to_string(&self) -> String {
-        self.exp.to_string()
-    }
-}
-impl Statement for ExpressionStatement {
-    fn statement_node(&self) {}
-}
-//----------------------------------------
-pub struct Identifier {
-    pub token: Token,
-    pub value: String,
-}
-impl Node for Identifier {
-    fn token_literal(&self) -> &str {
-        &self.token.literal
-    }
-    fn to_string(&self) -> String {
-        self.value.to_string()
-    }
-}
-impl Expression for Identifier {
-    fn expression_node(&self) {}
-}
-impl fmt::Display for Identifier {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.value)
+impl LetStatement {
+    pub fn new(token: Token, id: Identifier, exp: Expression) -> Self {
+        Self {
+            token,
+            id,
+            exp: Box::new(exp),
+        }
     }
 }
 
-//----------------------------------------
+/// 整数リテラル
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IntegerLiteral {
-    pub token: Token,
+    token: Token,
     pub value: i64,
 }
-impl Node for IntegerLiteral {
-    fn token_literal(&self) -> &str {
-        &self.token.literal
+impl IntegerLiteral {
+    pub fn new(token: Token) -> Self {
+        Self {
+            value: token.literal.parse::<i64>().unwrap(),
+            token,
+        }
     }
-    fn to_string(&self) -> String {
-        format!("{}", self.value)
-    }
-}
-impl Expression for IntegerLiteral {
-    fn expression_node(&self) {}
-}
-//----------------------------------------
-// - と !
-pub struct PrefixExpression {
-    pub token: Token,
-    pub operator: String,
-    pub right: Box<dyn Expression>,
-}
-impl Node for PrefixExpression {
-    fn token_literal(&self) -> &str {
-        &self.token.literal
-    }
-    fn to_string(&self) -> String {
-        format!("({}{})", self.operator, self.right)
-    }
-}
-impl Expression for PrefixExpression {
-    fn expression_node(&self) {}
 }
 
-//----------------------------------------
-// 中間演算式 右辺と左辺を持つ式
-pub struct InfixExpression {
-    pub token: Token,
-    pub left: Box<dyn Expression>,
-    pub operator: String,
-    pub right: Box<dyn Expression>,
-}
-impl Node for InfixExpression {
-    fn token_literal(&self) -> &str {
-        &self.token.literal
-    }
-    fn to_string(&self) -> String {
-        format!("({}{}{})", self.left, self.operator, self.right)
-    }
-}
-impl Expression for InfixExpression {
-    fn expression_node(&self) {}
-}
-
-//----------------------------------------
-pub struct Boolean {
-    pub token: Token,
+/// ブールリテラル "true" or "false"
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoolLiteral {
+    token: Token,
     pub value: bool,
 }
-impl Node for Boolean {
-    fn token_literal(&self) -> &str {
-        &self.token.literal
+impl BoolLiteral {
+    pub fn new(token: Token) -> Self {
+        Self {
+            value: token.literal.parse::<bool>().unwrap(),
+            token,
+        }
     }
-    fn to_string(&self) -> String {
-        format!("{}", self.value)
-    }
-}
-impl Expression for Boolean {
-    fn expression_node(&self) {}
 }
 
-//----------------------------------------
-pub struct IfExpression {
-    pub token: Token,
-    pub condition: Box<dyn Expression>,
-    pub consequence: Box<BlockStatement>,
-    pub alternarive: Option<Box<BlockStatement>>,
+/// 変数名に使用する識別子
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Identifier {
+    token: Token,
 }
-impl Node for IfExpression {
-    fn token_literal(&self) -> &str {
-        &self.token.literal
+impl Identifier {
+    pub fn new(token: Token) -> Self {
+        Self { token }
     }
-    fn to_string(&self) -> String {
-        let alt = match &self.alternarive {
-            None => "".to_string(),
-            Some(a) => format!("else{{{}}}", a.to_string()),
-        };
-        format!(
-            "if{}{{{}}}{}",
-            self.condition.to_string(),
-            self.consequence.to_string(),
-            alt
+    pub fn symbol(&self) -> String {
+        self.token.literal.clone()
+    }
+}
+
+/// 関数定義
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunctionLiteral {
+    token: Token,
+    pub params: Vec<Identifier>,
+    pub block: Vec<Statement>,
+}
+impl FunctionLiteral {
+    pub fn new(token: Token, params: Vec<Identifier>, block: Vec<Statement>) -> Self {
+        Self {
+            token,
+            params,
+            block,
+        }
+    }
+}
+impl fmt::Display for FunctionLiteral {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let (s, e) = self.token.location();
+        write!(
+            f,
+            "(block:{}-{}, params:{}, stmts:{})",
+            s,
+            e,
+            self.params.len(),
+            self.block.len()
         )
     }
 }
-impl Expression for IfExpression {
-    fn expression_node(&self) {}
+
+/// 前置演算子式
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrefixExpression {
+    token: Token,
+    /// 演算
+    pub operator: UnOp,
+    /// 右辺
+    pub right: Box<Expression>,
+}
+impl PrefixExpression {
+    pub fn new(token: Token, right: Expression) -> Self {
+        Self {
+            operator: match token.kind {
+                TokenKind::PLUS => UnOp::Positive,
+                TokenKind::MINUS => UnOp::Negative,
+                TokenKind::BANG => UnOp::Not,
+                _ => unreachable!("illegal kind[{:?}]", token.kind),
+            },
+            token,
+            right: Box::new(right),
+        }
+    }
 }
 
-//----------------------------------------
-pub struct BlockStatement {
-    pub token: Token,
-    pub statements: Vec<Box<dyn Statement>>,
+/// 中置演算子式
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InfixExpression {
+    token: Token,
+    /// 左辺
+    pub left: Box<Expression>,
+    /// 演算
+    pub operator: BinOp,
+    /// 右辺
+    pub right: Box<Expression>,
 }
-impl Node for BlockStatement {
-    fn token_literal(&self) -> &str {
-        &self.token.literal
-    }
-    fn to_string(&self) -> String {
-        let mut sb = vec![];
-        for s in &self.statements {
-            sb.push(s.to_string());
+impl InfixExpression {
+    pub fn new(token: Token, left: Expression, right: Expression) -> Self {
+        Self {
+            operator: match token.kind {
+                TokenKind::PLUS => BinOp::Add,
+                TokenKind::MINUS => BinOp::Sub,
+                TokenKind::ASTERISK => BinOp::Mul,
+                TokenKind::SLASH => BinOp::Div,
+                TokenKind::LT => BinOp::Lt,
+                TokenKind::GT => BinOp::Gt,
+                TokenKind::EQ => BinOp::Eq,
+                TokenKind::NOTEQ => BinOp::NotEq,
+                _ => unreachable!("illegal kind[{:?}]", token.kind),
+            },
+            token,
+            left: Box::new(left),
+            right: Box::new(right),
         }
-        sb.join("")
     }
-}
-impl Statement for BlockStatement {
-    fn statement_node(&self) {}
 }
 
-//----------------------------------------
-pub struct FunctionLiteral {
-    pub token: Token,
-    pub params: Vec<Box<Identifier>>,
-    pub body: Box<BlockStatement>,
+/// 関数呼び出し式
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallFunction {
+    token: Token,
+    pub func: Box<Expression>,
+    pub args: Vec<Expression>,
 }
-impl Node for FunctionLiteral {
-    fn token_literal(&self) -> &str {
-        &self.token.literal
-    }
-    fn to_string(&self) -> String {
-        let mut params = vec![];
-        for p in &self.params {
-            params.push(p.to_string());
+impl CallFunction {
+    pub fn new(token: Token, func: Expression, args: Vec<Expression>) -> Self {
+        CallFunction {
+            token,
+            func: Box::new(func),
+            args,
         }
-        format!("fn({}){{{}}}", params.join(","), self.body.to_string())
     }
-}
-impl Expression for FunctionLiteral {
-    fn expression_node(&self) {}
-}
-
-// 関数呼び出し式
-//----------------------------------------
-pub struct CallExpression {
-    pub token: Token,
-    pub func: Box<dyn Expression>, // 関数リテラルか, Identifier
-    pub args: Vec<Box<dyn Expression>>,
-}
-impl Node for CallExpression {
-    fn token_literal(&self) -> &str {
-        &self.token.literal
-    }
-    fn to_string(&self) -> String {
-        let mut args = vec![];
-        for p in &self.args {
-            args.push(p.to_string());
-        }
-        format!("{}({})", self.func.to_string(), args.join(","))
-    }
-}
-impl Expression for CallExpression {
-    fn expression_node(&self) {}
 }

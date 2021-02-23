@@ -1,15 +1,17 @@
-use super::ast::*;
-use super::lexer::*;
-use super::parser::*;
+use super::*;
+use std::collections::HashMap;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::BufWriter;
 use std::io::Read;
-use std::io::Result;
 use std::io::Write;
 
-pub fn start<R: Read, W: Write>(mut reader: BufReader<R>, mut writer: BufWriter<W>) -> Result<()> {
+pub fn start<R: Read, W: Write>(
+    mut reader: BufReader<R>,
+    mut writer: BufWriter<W>,
+) -> std::io::Result<()> {
     let prompt = ">>";
+    let env = env::new_env(HashMap::new());
     loop {
         writer.write(prompt.as_bytes())?;
         writer.flush()?;
@@ -19,17 +21,29 @@ pub fn start<R: Read, W: Write>(mut reader: BufReader<R>, mut writer: BufWriter<
             // EOF
             break;
         }
-        let mut l = Lexer::new(&line);
-        let mut p = Parser::new(&mut l);
-        let program = p.parse_program();
-        if p.errors().len() != 0 {
-            eprintln!("parser has {} errors", p.errors().len());
-            for msg in p.errors() {
-                eprintln!("parser error: {}", msg);
-            }
-            continue;
+        let lex_result = lexer::lex(&line);
+        writer.write("success lex\n".as_bytes())?;
+        for token in &lex_result {
+            writer.write(format!("{}\n", token).as_bytes())?;
         }
-        writer.write(program.to_string().as_bytes())?;
+        match parser::parse_program(lex_result) {
+            Ok(ast) => {
+                writer.write("success parse\n".as_bytes())?;
+                writer.write(format!("{:?}\n", ast).as_bytes())?;
+                match eval::eval_statements(ast, &env) {
+                    Ok(obj) => {
+                        writer.write("success eval\n".as_bytes())?;
+                        writer.write(format!("{}\n", obj).as_bytes())?;
+                    }
+                    Err(e) => {
+                        writer.write(format!("{:?}\n", e).as_bytes())?;
+                    }
+                }
+            }
+            Err(e) => {
+                writer.write(format!("{:?}\n", e).as_bytes())?;
+            }
+        }
     }
     Ok(())
 }

@@ -1,5 +1,5 @@
 [package]
-name = "monkey_rust"
+name = "monkey-rust"
 version = "0.1.0"
 authors = ["ifukazoo <ifukazoo@gmail.com>"]
 edition = "2018"
@@ -8,4 +8,3 @@ edition = "2018"
 
 [dependencies]
 lazy_static = "*"
-whoami = "*"

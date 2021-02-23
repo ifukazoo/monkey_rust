@@ -1,488 +1,235 @@
 use super::token::*;
-use std::fmt;
+use std::iter::Peekable;
 
-pub struct Lexer<'a> {
-    // 入力文
-    input: &'a str,
-    // 現在のpos
-    position: usize,
-    // 次のPos
-    read_position: usize,
-    // 現在のch
-    ch: u8,
-}
+/// 字句解析結果
+pub type LexResult = Vec<Token>;
 
-impl<'a> fmt::Display for Lexer<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let remain = &self.input[self.position..];
-        // let mut sl = sl.iter().skip(self.position - 1);
-        write!(
-            f,
-            "{{\ninput:\"{}\", \nremain:\"{}\", position:{}, readPosition:{}, ch:\"{}\"}}",
-            self.input, remain, self.position, self.read_position, self.ch
-        )
-    }
-}
+/// 入力からTokenの配列を返す.
+/// * char単位だと簡単に複数バイト文字が扱えるのでcharのsliceベースで処理することにする.
+pub fn lex(input: &str) -> LexResult {
+    use TokenKind::*;
 
-impl<'a> Lexer<'a> {
-    pub fn new(s: &'a str) -> Lexer {
-        let mut lexer = Lexer {
-            input: s,
-            position: 0,
-            read_position: 0,
-            ch: 0,
+    // 字句解析に便利なpeekableに変換
+    let mut peekable = input.chars().peekable();
+    let mut tokens = Vec::new();
+    let mut pos = 0;
+
+    // 1トークン(専用関数)解析
+    macro_rules! lex_a_token {
+        ($do_lexing:expr) => {
+            let (token, after_pos) = $do_lexing;
+            tokens.push(token);
+            pos = after_pos;
         };
-        lexer.read_char();
-        lexer
     }
-    fn read_char(&mut self) {
-        if self.read_position >= self.input.len() {
-            self.ch = 0;
+
+    // 1文字解析
+    macro_rules! lex_a_char {
+        ($ch:expr, $kind:expr) => {{
+            tokens.push(Token::new($kind, $ch.to_string(), pos, pos + 1));
+            next_char!();
+        }};
+    }
+
+    macro_rules! next_char {
+        () => {{
+            peekable.next().unwrap();
+            pos = pos + 1;
+        }};
+    }
+
+    while let Some(&c) = peekable.peek() {
+        if c.is_digit(10) {
+            lex_a_token!(lex_int(&mut peekable, pos));
+        } else if c.is_alphabetic() {
+            lex_a_token!(lex_alpha(&mut peekable, pos));
+        } else if c == '=' {
+            lex_a_token!(lex_prefix_equal(&mut peekable, pos));
+        } else if c == '!' {
+            lex_a_token!(lex_prefix_exc(&mut peekable, pos));
         } else {
-            self.ch = self.input.as_bytes()[self.read_position];
+            match c {
+                '+' => lex_a_char!(c, PLUS),
+                '-' => lex_a_char!(c, MINUS),
+                '*' => lex_a_char!(c, ASTERISK),
+                '/' => lex_a_char!(c, SLASH),
+                '<' => lex_a_char!(c, LT),
+                '>' => lex_a_char!(c, GT),
+                ';' => lex_a_char!(c, SEMICOLON),
+                ',' => lex_a_char!(c, COMMA),
+                '{' => lex_a_char!(c, LBRACE),
+                '}' => lex_a_char!(c, RBRACE),
+                '(' => lex_a_char!(c, LPAREN),
+                ')' => lex_a_char!(c, RPAREN),
+                ' ' | '\n' | '\r' | '\t' => next_char!(),
+                _ => lex_a_char!(c, ILLEGAL),
+            };
         }
-        self.position = self.read_position;
-        self.read_position += 1;
     }
-    fn peek_char(&mut self) -> u8 {
-        if self.read_position >= self.input.len() {
-            0
+    tokens
+}
+
+// 数列
+// 0, 1, 12, 01, ...
+fn lex_int<'a, Tokens>(input: &mut Peekable<Tokens>, start: usize) -> (Token, usize)
+where
+    Tokens: Iterator<Item = char>,
+{
+    use TokenKind::*;
+
+    let mut pos = start;
+    let mut s = String::new();
+    while let Some(c) = input.peek() {
+        if c.is_digit(10) {
+            s.push(*c);
+            input.next().unwrap();
+            pos += 1;
         } else {
-            self.input.as_bytes()[self.read_position]
+            break;
         }
     }
-    fn back_char(&mut self) {
-        self.read_position = self.position;
-        if self.position == 0 {
-            self.ch = 0;
+    (Token::new(INT, s, start, pos), pos)
+}
+
+// アルファベットの列
+// a, A, aB, ABC
+fn lex_alpha<Tokens>(input: &mut Peekable<Tokens>, start: usize) -> (Token, usize)
+where
+    Tokens: Iterator<Item = char>,
+{
+    use TokenKind::*;
+
+    let mut pos = start;
+    let mut s = String::new();
+    while let Some(&c) = input.peek() {
+        if c.is_alphabetic() {
+            s.push(c);
+            input.next().unwrap();
+            pos += 1;
         } else {
-            self.position -= 1;
-            self.ch = self.input.as_bytes()[self.position];
+            break;
         }
     }
-    fn read_number(&mut self) -> String {
-        let mut buf: Vec<u8> = vec![];
-        while is_digit(char::from(self.ch)) {
-            buf.push(self.ch);
-            self.read_char();
-        }
-        self.back_char();
-        String::from_utf8(buf).unwrap()
+    match s.as_str() {
+        "let" => (Token::new(LET, s, start, pos), pos),
+        "fn" => (Token::new(FUNCTION, s, start, pos), pos),
+        "if" => (Token::new(IF, s, start, pos), pos),
+        "else" => (Token::new(ELSE, s, start, pos), pos),
+        "true" => (Token::new(TRUE, s, start, pos), pos),
+        "false" => (Token::new(FALSE, s, start, pos), pos),
+        "return" => (Token::new(RETURN, s, start, pos), pos),
+        _ => (Token::new(IDENT, s, start, pos), pos),
     }
-    fn read_identifier(&mut self) -> String {
-        let mut buf: Vec<u8> = vec![];
-        while is_letter(char::from(self.ch)) {
-            buf.push(self.ch);
-            self.read_char();
-        }
-        self.back_char();
-        String::from_utf8(buf).unwrap()
-    }
-    fn skip_white_space(&mut self) {
-        loop {
-            let ch: char = char::from(self.ch);
-            if !(ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t') {
-                break;
+}
+
+// =で始まる
+fn lex_prefix_equal<Tokens>(input: &mut Peekable<Tokens>, start: usize) -> (Token, usize)
+where
+    Tokens: Iterator<Item = char>,
+{
+    use TokenKind::*;
+    let mut pos = start;
+
+    // 1文字目の = を刈り取り
+    input.next().unwrap();
+    pos += 1;
+    match input.peek() {
+        Some(&c) => {
+            if c == '=' {
+                input.next().unwrap();
+                pos += 1;
+                (Token::new(EQ, String::from("=="), start, pos), pos)
+            } else {
+                (Token::new(ASSIGN, String::from("="), start, pos), pos)
             }
-            self.read_char();
         }
+        None => (Token::new(ASSIGN, String::from("="), start, pos), pos),
     }
-    pub fn next_token(&mut self) -> Token {
-        self.skip_white_space();
-        let ch: char = char::from(self.ch);
+}
 
-        let token = match ch {
-            '=' => {
-                // 先読み
-                match char::from(self.peek_char()) {
-                    '=' => {
-                        // 読み進める
-                        self.read_char();
-                        new_token(TokenType::EQ, "==")
-                    }
-                    _ => new_token(TokenType::ASSIGN, &ch.to_string()),
-                }
+// !で始まる
+fn lex_prefix_exc<Tokens>(input: &mut Peekable<Tokens>, start: usize) -> (Token, usize)
+where
+    Tokens: Iterator<Item = char>,
+{
+    use TokenKind::*;
+    let mut pos = start;
+
+    // 1文字目の ! を刈り取り
+    input.next().unwrap();
+    pos += 1;
+    match input.peek() {
+        Some(&c) => {
+            if c == '=' {
+                input.next().unwrap();
+                pos += 1;
+                (Token::new(NOTEQ, String::from("!="), start, pos), pos)
+            } else {
+                (Token::new(BANG, String::from("!"), start, pos), pos)
             }
-            '+' => new_token(TokenType::PLUS, &ch.to_string()),
-            '-' => new_token(TokenType::MINUS, &ch.to_string()),
-            '*' => new_token(TokenType::ASTERISK, &ch.to_string()),
-            '/' => new_token(TokenType::SLASH, &ch.to_string()),
-            '!' => match char::from(self.peek_char()) {
-                '=' => {
-                    self.read_char();
-                    new_token(TokenType::NOTEQ, "!=")
-                }
-                _ => new_token(TokenType::BANG, &ch.to_string()),
-            },
-            '<' => new_token(TokenType::LT, &ch.to_string()),
-            '>' => new_token(TokenType::GT, &ch.to_string()),
-            ';' => new_token(TokenType::SEMICOLON, &ch.to_string()),
-            ',' => new_token(TokenType::COMMA, &ch.to_string()),
-            '{' => new_token(TokenType::LBRACE, &ch.to_string()),
-            '}' => new_token(TokenType::RBRACE, &ch.to_string()),
-            '(' => new_token(TokenType::LPAREN, &ch.to_string()),
-            ')' => new_token(TokenType::RPAREN, &ch.to_string()),
-            '\0' => Token {
-                t_type: TokenType::EOF,
-                literal: "".to_string(),
-            },
-            _ => {
-                if is_letter(char::from(self.ch)) {
-                    let ident = self.read_identifier();
-                    let t_type = lookup_ident(&ident);
-                    new_token(t_type, &ident)
-                } else if is_digit(char::from(self.ch)) {
-                    new_token(TokenType::INT, &self.read_number())
-                } else {
-                    new_token(TokenType::ILLEGAL, &self.ch.to_string())
-                }
-            }
-        };
-        self.read_char();
-        token
-    }
-}
-fn new_token(t: TokenType, l: &str) -> Token {
-    Token {
-        t_type: t,
-        literal: String::from(l),
-    }
-}
-fn is_letter(ch: char) -> bool {
-    'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || ch == '_'
-}
-fn is_digit(ch: char) -> bool {
-    '0' <= ch && ch <= '9'
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn it_works() {
-        // let input = String::from(r#"let five = 5;"#);
-        let input = String::from(
-            r#"
-         let five = 5;
-                                  let ten = 10;
-
-                     let add = fn(x , y) {
-                         x + y;
-                     };
-                     let result = add(five, ten);
-                     !-/*5;
-                     5 < 10 > 5;
-
-                     if (5 < 10) {
-                         return true;
-                     } else {
-                         return false;
-                     }
-                     10 == 10;
-                     10 != 9;
-
-                     "#,
-        );
-        let expects = vec![
-            Token {
-                t_type: TokenType::LET,
-                literal: "let".to_string(),
-            },
-            Token {
-                t_type: TokenType::IDENT,
-                literal: "five".to_string(),
-            },
-            Token {
-                t_type: TokenType::ASSIGN,
-                literal: "=".to_string(),
-            },
-            Token {
-                t_type: TokenType::INT,
-                literal: "5".to_string(),
-            },
-            Token {
-                t_type: TokenType::SEMICOLON,
-                literal: ";".to_string(),
-            },
-            Token {
-                t_type: TokenType::LET,
-                literal: "let".to_string(),
-            },
-            Token {
-                t_type: TokenType::IDENT,
-                literal: "ten".to_string(),
-            },
-            Token {
-                t_type: TokenType::ASSIGN,
-                literal: "=".to_string(),
-            },
-            Token {
-                t_type: TokenType::INT,
-                literal: "10".to_string(),
-            },
-            Token {
-                t_type: TokenType::SEMICOLON,
-                literal: ";".to_string(),
-            },
-            Token {
-                t_type: TokenType::LET,
-                literal: "let".to_string(),
-            },
-            Token {
-                t_type: TokenType::IDENT,
-                literal: "add".to_string(),
-            },
-            Token {
-                t_type: TokenType::ASSIGN,
-                literal: "=".to_string(),
-            },
-            Token {
-                t_type: TokenType::FUNCTION,
-                literal: "fn".to_string(),
-            },
-            Token {
-                t_type: TokenType::LPAREN,
-                literal: "(".to_string(),
-            },
-            Token {
-                t_type: TokenType::IDENT,
-                literal: "x".to_string(),
-            },
-            Token {
-                t_type: TokenType::COMMA,
-                literal: ",".to_string(),
-            },
-            Token {
-                t_type: TokenType::IDENT,
-                literal: "y".to_string(),
-            },
-            Token {
-                t_type: TokenType::RPAREN,
-                literal: ")".to_string(),
-            },
-            Token {
-                t_type: TokenType::LBRACE,
-                literal: "{".to_string(),
-            },
-            Token {
-                t_type: TokenType::IDENT,
-                literal: "x".to_string(),
-            },
-            Token {
-                t_type: TokenType::PLUS,
-                literal: "+".to_string(),
-            },
-            Token {
-                t_type: TokenType::IDENT,
-                literal: "y".to_string(),
-            },
-            Token {
-                t_type: TokenType::SEMICOLON,
-                literal: ";".to_string(),
-            },
-            Token {
-                t_type: TokenType::RBRACE,
-                literal: "}".to_string(),
-            },
-            Token {
-                t_type: TokenType::SEMICOLON,
-                literal: ";".to_string(),
-            },
-            Token {
-                t_type: TokenType::LET,
-                literal: "let".to_string(),
-            },
-            Token {
-                t_type: TokenType::IDENT,
-                literal: "result".to_string(),
-            },
-            Token {
-                t_type: TokenType::ASSIGN,
-                literal: "=".to_string(),
-            },
-            Token {
-                t_type: TokenType::IDENT,
-                literal: "add".to_string(),
-            },
-            Token {
-                t_type: TokenType::LPAREN,
-                literal: "(".to_string(),
-            },
-            Token {
-                t_type: TokenType::IDENT,
-                literal: "five".to_string(),
-            },
-            Token {
-                t_type: TokenType::COMMA,
-                literal: ",".to_string(),
-            },
-            Token {
-                t_type: TokenType::IDENT,
-                literal: "ten".to_string(),
-            },
-            Token {
-                t_type: TokenType::RPAREN,
-                literal: ")".to_string(),
-            },
-            Token {
-                t_type: TokenType::SEMICOLON,
-                literal: ";".to_string(),
-            },
-            Token {
-                t_type: TokenType::BANG,
-                literal: "!".to_string(),
-            },
-            Token {
-                t_type: TokenType::MINUS,
-                literal: "-".to_string(),
-            },
-            Token {
-                t_type: TokenType::SLASH,
-                literal: "/".to_string(),
-            },
-            Token {
-                t_type: TokenType::ASTERISK,
-                literal: "*".to_string(),
-            },
-            Token {
-                t_type: TokenType::INT,
-                literal: "5".to_string(),
-            },
-            Token {
-                t_type: TokenType::SEMICOLON,
-                literal: ";".to_string(),
-            },
-            Token {
-                t_type: TokenType::INT,
-                literal: "5".to_string(),
-            },
-            Token {
-                t_type: TokenType::LT,
-                literal: "<".to_string(),
-            },
-            Token {
-                t_type: TokenType::INT,
-                literal: "10".to_string(),
-            },
-            Token {
-                t_type: TokenType::GT,
-                literal: ">".to_string(),
-            },
-            Token {
-                t_type: TokenType::INT,
-                literal: "5".to_string(),
-            },
-            Token {
-                t_type: TokenType::SEMICOLON,
-                literal: ";".to_string(),
-            },
-            Token {
-                t_type: TokenType::IF,
-                literal: "if".to_string(),
-            },
-            Token {
-                t_type: TokenType::LPAREN,
-                literal: "(".to_string(),
-            },
-            Token {
-                t_type: TokenType::INT,
-                literal: "5".to_string(),
-            },
-            Token {
-                t_type: TokenType::LT,
-                literal: "<".to_string(),
-            },
-            Token {
-                t_type: TokenType::INT,
-                literal: "10".to_string(),
-            },
-            Token {
-                t_type: TokenType::RPAREN,
-                literal: ")".to_string(),
-            },
-            Token {
-                t_type: TokenType::LBRACE,
-                literal: "{".to_string(),
-            },
-            Token {
-                t_type: TokenType::RETURN,
-                literal: "return".to_string(),
-            },
-            Token {
-                t_type: TokenType::TRUE,
-                literal: "true".to_string(),
-            },
-            Token {
-                t_type: TokenType::SEMICOLON,
-                literal: ";".to_string(),
-            },
-            Token {
-                t_type: TokenType::RBRACE,
-                literal: "}".to_string(),
-            },
-            Token {
-                t_type: TokenType::ELSE,
-                literal: "else".to_string(),
-            },
-            Token {
-                t_type: TokenType::LBRACE,
-                literal: "{".to_string(),
-            },
-            Token {
-                t_type: TokenType::RETURN,
-                literal: "return".to_string(),
-            },
-            Token {
-                t_type: TokenType::FALSE,
-                literal: "false".to_string(),
-            },
-            Token {
-                t_type: TokenType::SEMICOLON,
-                literal: ";".to_string(),
-            },
-            Token {
-                t_type: TokenType::RBRACE,
-                literal: "}".to_string(),
-            },
-            Token {
-                t_type: TokenType::INT,
-                literal: "10".to_string(),
-            },
-            Token {
-                t_type: TokenType::EQ,
-                literal: "==".to_string(),
-            },
-            Token {
-                t_type: TokenType::INT,
-                literal: "10".to_string(),
-            },
-            Token {
-                t_type: TokenType::SEMICOLON,
-                literal: ";".to_string(),
-            },
-            Token {
-                t_type: TokenType::INT,
-                literal: "10".to_string(),
-            },
-            Token {
-                t_type: TokenType::NOTEQ,
-                literal: "!=".to_string(),
-            },
-            Token {
-                t_type: TokenType::INT,
-                literal: "9".to_string(),
-            },
-            Token {
-                t_type: TokenType::SEMICOLON,
-                literal: ";".to_string(),
-            },
-        ];
-
-        let mut l = Lexer::new(&input);
-        for expect in expects.iter() {
-            let t = l.next_token();
-            assert_eq!(expect.t_type, t.t_type);
-            assert_eq!(expect.literal, t.literal);
         }
+        None => (Token::new(BANG, String::from("!"), start, pos), pos),
+    }
+}
+
+#[test]
+
+fn test_lex() {
+    use TokenKind::*;
+    let inputs = vec!["ab = 1", "a == 10", "bca = !true"];
+    let expected = vec![
+        vec![
+            Token::new(IDENT, String::from("ab"), 0, 2),
+            Token::new(ASSIGN, String::from("="), 3, 4),
+            Token::new(INT, String::from("1"), 5, 6),
+        ],
+        vec![
+            Token::new(IDENT, String::from("a"), 0, 1),
+            Token::new(EQ, String::from("=="), 2, 4),
+            Token::new(INT, String::from("10"), 5, 7),
+        ],
+        vec![
+            Token::new(IDENT, String::from("bca"), 0, 3),
+            Token::new(ASSIGN, String::from("="), 4, 5),
+            Token::new(BANG, String::from("!"), 6, 7),
+            Token::new(TRUE, String::from("true"), 7, 11),
+        ],
+    ];
+    for (idx, input) in inputs.iter().enumerate() {
+        assert_eq!(expected[idx], lex(input));
+    }
+}
+
+#[test]
+fn test_lex_int() {
+    use TokenKind::*;
+    let tests = vec![
+        ("1", Token::new(INT, String::from("1"), 0, 1)),
+        ("0", Token::new(INT, String::from("0"), 0, 1)),
+        ("12", Token::new(INT, String::from("12"), 0, 2)),
+    ];
+    for (input, expected) in tests {
+        let mut p = input.chars().peekable();
+        assert_eq!(expected, lex_int(&mut p, 0).0);
+    }
+}
+
+#[test]
+fn test_lex_alpha() {
+    use TokenKind::*;
+
+    let tests = vec![
+        ("let", Token::new(LET, String::from("let"), 0, 3)),
+        ("fn", Token::new(FUNCTION, String::from("fn"), 0, 2)),
+        ("if", Token::new(IF, String::from("if"), 0, 2)),
+        ("else", Token::new(ELSE, String::from("else"), 0, 4)),
+        ("true", Token::new(TRUE, String::from("true"), 0, 4)),
+        ("false", Token::new(FALSE, String::from("false"), 0, 5)),
+        ("return", Token::new(RETURN, String::from("return"), 0, 6)),
+        ("var", Token::new(IDENT, String::from("var"), 0, 3)),
+    ];
+    for (input, expected) in tests {
+        let mut p = input.chars().peekable();
+        assert_eq!(expected, lex_alpha(&mut p, 0).0);
     }
 }
