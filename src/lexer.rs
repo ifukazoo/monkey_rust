@@ -172,64 +172,81 @@ where
     }
 }
 
-#[test]
+#[cfg(test)]
+mod test {
+    use super::*;
 
-fn test_lex() {
-    use TokenKind::*;
-    let inputs = vec!["ab = 1", "a == 10", "bca = !true"];
-    let expected = vec![
-        vec![
-            Token::new(IDENT, String::from("ab"), 0, 2),
-            Token::new(ASSIGN, String::from("="), 3, 4),
-            Token::new(INT, String::from("1"), 5, 6),
-        ],
-        vec![
-            Token::new(IDENT, String::from("a"), 0, 1),
-            Token::new(EQ, String::from("=="), 2, 4),
-            Token::new(INT, String::from("10"), 5, 7),
-        ],
-        vec![
-            Token::new(IDENT, String::from("bca"), 0, 3),
-            Token::new(ASSIGN, String::from("="), 4, 5),
-            Token::new(BANG, String::from("!"), 6, 7),
-            Token::new(TRUE, String::from("true"), 7, 11),
-        ],
-    ];
-    for (idx, input) in inputs.iter().enumerate() {
-        assert_eq!(expected[idx], lex(input));
+    // #[test]
+    // fn test_lex_string() {
+    //     use TokenKind::*;
+
+    //     let tests = vec![
+    //         ("let", Token::new(String, String::from("let"), 0, 3)),
+    //         ("fn", Token::new(FUNCTION, String::from("fn"), 0, 2)),
+    //         ("if", Token::new(IF, String::from("if"), 0, 2)),
+    //         ("else", Token::new(ELSE, String::from("else"), 0, 4)),
+    //         ("true", Token::new(TRUE, String::from("true"), 0, 4)),
+    //         ("false", Token::new(FALSE, String::from("false"), 0, 5)),
+    //         ("return", Token::new(RETURN, String::from("return"), 0, 6)),
+    //         ("var", Token::new(IDENT, String::from("var"), 0, 3)),
+    //     ];
+    //     for (input, expected) in tests {
+    //         let mut p = input.chars().peekable();
+    //         assert_eq!(expected, lex_alpha(&mut p, 0).0);
+    //     }
+    // }
+    #[test]
+
+    fn test_lex() {
+        use TokenKind::*;
+        let tests = vec![(
+            "ab = 1",
+            vec![
+                Token::new(IDENT, String::from("ab"), 0, 2),
+                Token::new(ASSIGN, String::from("="), 3, 4),
+                Token::new(INT, String::from("1"), 5, 6),
+            ],
+        )];
+        for (input, expecteds) in tests.iter() {
+            let tokens = lex(input);
+            assert_eq!(expecteds.len(), tokens.len());
+            for (expected, token) in expecteds.iter().zip(tokens.iter()) {
+                assert_eq!(expected, token);
+            }
+        }
     }
-}
 
-#[test]
-fn test_lex_int() {
-    use TokenKind::*;
-    let tests = vec![
-        ("1", Token::new(INT, String::from("1"), 0, 1)),
-        ("0", Token::new(INT, String::from("0"), 0, 1)),
-        ("12", Token::new(INT, String::from("12"), 0, 2)),
-    ];
-    for (input, expected) in tests {
-        let mut p = input.chars().peekable();
-        assert_eq!(expected, lex_int(&mut p, 0).0);
+    #[test]
+    fn test_lex_int() {
+        use TokenKind::*;
+        let tests = vec![
+            ("1", Token::new(INT, String::from("1"), 0, 1)),
+            ("0", Token::new(INT, String::from("0"), 0, 1)),
+            ("12", Token::new(INT, String::from("12"), 0, 2)),
+        ];
+        for (input, expected) in tests {
+            let mut p = input.chars().peekable();
+            assert_eq!(expected, lex_int(&mut p, 0).0);
+        }
     }
-}
 
-#[test]
-fn test_lex_alpha() {
-    use TokenKind::*;
+    #[test]
+    fn test_lex_alpha() {
+        use TokenKind::*;
 
-    let tests = vec![
-        ("let", Token::new(LET, String::from("let"), 0, 3)),
-        ("fn", Token::new(FUNCTION, String::from("fn"), 0, 2)),
-        ("if", Token::new(IF, String::from("if"), 0, 2)),
-        ("else", Token::new(ELSE, String::from("else"), 0, 4)),
-        ("true", Token::new(TRUE, String::from("true"), 0, 4)),
-        ("false", Token::new(FALSE, String::from("false"), 0, 5)),
-        ("return", Token::new(RETURN, String::from("return"), 0, 6)),
-        ("var", Token::new(IDENT, String::from("var"), 0, 3)),
-    ];
-    for (input, expected) in tests {
-        let mut p = input.chars().peekable();
-        assert_eq!(expected, lex_alpha(&mut p, 0).0);
+        let tests = vec![
+            ("let", Token::new(LET, String::from("let"), 0, 3)),
+            ("fn", Token::new(FUNCTION, String::from("fn"), 0, 2)),
+            ("if", Token::new(IF, String::from("if"), 0, 2)),
+            ("else", Token::new(ELSE, String::from("else"), 0, 4)),
+            ("true", Token::new(TRUE, String::from("true"), 0, 4)),
+            ("false", Token::new(FALSE, String::from("false"), 0, 5)),
+            ("return", Token::new(RETURN, String::from("return"), 0, 6)),
+            ("var", Token::new(IDENT, String::from("var"), 0, 3)),
+        ];
+        for (input, expected) in tests {
+            let mut p = input.chars().peekable();
+            assert_eq!(expected, lex_alpha(&mut p, 0).0);
+        }
     }
 }
