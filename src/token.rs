@@ -6,6 +6,7 @@ pub enum TokenKind {
     ILLEGAL,
     IDENT,
     INT,
+    STRING,
 
     ASSIGN,
     PLUS,

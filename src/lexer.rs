@@ -47,6 +47,8 @@ pub fn lex(input: &str) -> LexResult {
             lex_a_token!(lex_prefix_equal(&mut peekable, pos));
         } else if c == '!' {
             lex_a_token!(lex_prefix_exc(&mut peekable, pos));
+        } else if c == '"' {
+            lex_a_token!(lex_string(&mut peekable, pos));
         } else {
             match c {
                 '+' => lex_a_char!(c, PLUS),
@@ -172,31 +174,47 @@ where
     }
 }
 
+// "で始まる
+fn lex_string<Tokens>(input: &mut Peekable<Tokens>, start: usize) -> (Token, usize)
+where
+    Tokens: Iterator<Item = char>,
+{
+    use TokenKind::*;
+    let mut pos = start;
+    let mut s = String::new();
+
+    // 1文字目の " を刈り取り
+    let c = input.next().unwrap();
+    s.push(c);
+    pos += 1;
+
+    while let Some(c) = input.next() {
+        s.push(c);
+        pos += 1;
+        if c == '\\' {
+            // エスケープ文字の処理
+            match input.next() {
+                None => break, // 不完全なエスケープ
+                Some(nextc) => {
+                    s.push(nextc);
+                    pos += 1;
+                }
+            }
+        } else {
+            if c == '"' {
+                // 終了
+                return (Token::new(STRING, s, start, pos), pos);
+            }
+        }
+    }
+    (Token::new(ILLEGAL, s, start, pos), pos)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
 
-    // #[test]
-    // fn test_lex_string() {
-    //     use TokenKind::*;
-
-    //     let tests = vec![
-    //         ("let", Token::new(String, String::from("let"), 0, 3)),
-    //         ("fn", Token::new(FUNCTION, String::from("fn"), 0, 2)),
-    //         ("if", Token::new(IF, String::from("if"), 0, 2)),
-    //         ("else", Token::new(ELSE, String::from("else"), 0, 4)),
-    //         ("true", Token::new(TRUE, String::from("true"), 0, 4)),
-    //         ("false", Token::new(FALSE, String::from("false"), 0, 5)),
-    //         ("return", Token::new(RETURN, String::from("return"), 0, 6)),
-    //         ("var", Token::new(IDENT, String::from("var"), 0, 3)),
-    //     ];
-    //     for (input, expected) in tests {
-    //         let mut p = input.chars().peekable();
-    //         assert_eq!(expected, lex_alpha(&mut p, 0).0);
-    //     }
-    // }
     #[test]
-
     fn test_lex() {
         use TokenKind::*;
         let tests = vec![(
@@ -247,6 +265,40 @@ mod test {
         for (input, expected) in tests {
             let mut p = input.chars().peekable();
             assert_eq!(expected, lex_alpha(&mut p, 0).0);
+        }
+    }
+
+    #[test]
+    fn test_string() {
+        use TokenKind::*;
+        let tests = vec![
+            (
+                r#""string""#,
+                vec![Token::new(STRING, String::from("\"string\""), 0, 8)],
+            ),
+            (
+                r#""\"hello\"""#,
+                vec![Token::new(STRING, String::from("\"\\\"hello\\\"\""), 0, 11)],
+            ),
+            (
+                r#""\n""#,
+                vec![Token::new(STRING, String::from("\"\\n\""), 0, 4)],
+            ),
+            (
+                r#""broken"#,
+                vec![Token::new(ILLEGAL, String::from("\"broken"), 0, 7)],
+            ),
+            (
+                r#""broken\"#,
+                vec![Token::new(ILLEGAL, String::from("\"broken\\"), 0, 8)],
+            ),
+        ];
+        for (input, expecteds) in tests.iter() {
+            let tokens = lex(input);
+            assert_eq!(expecteds.len(), tokens.len());
+            for (expected, token) in expecteds.iter().zip(tokens.iter()) {
+                assert_eq!(expected, token);
+            }
         }
     }
 }
