@@ -424,123 +424,118 @@ fn get_priority(kind: TokenKind) -> Priority {
     }
 }
 
-#[test]
-fn test_parse_ident() {
-    use super::lexer;
-    let inputs = vec![String::from("x"), String::from("result")];
-    let expected_tokens = inputs
-        .iter()
-        .map(|s| Token::new(TokenKind::IDENT, s.to_string(), 0, s.len()))
-        .collect::<Vec<Token>>();
-    for (i, _) in inputs.iter().enumerate() {
-        let expected_ast = Identifier::new(expected_tokens[i].clone());
-        let result = lexer::lex(&inputs[i]);
-        let ast = parse_ident_exp(&mut result.into_iter().peekable()).unwrap();
-        assert_eq!(ast, Ident(expected_ast));
-    }
-}
+#[cfg(test)]
+mod test {
+    use super::super::lexer;
+    use super::*;
 
-#[test]
-fn test_parse_int() {
-    use super::lexer;
-    let inputs = vec![String::from("0"), String::from("12")];
-    let expected_tokens = inputs
-        .iter()
-        .map(|s| Token::new(TokenKind::INT, s.to_string(), 0, s.len()))
-        .collect::<Vec<Token>>();
-    for (i, _) in inputs.iter().enumerate() {
-        let expected_ast = IntegerLiteral::new(expected_tokens[i].clone());
-        let result = lexer::lex(&inputs[i]);
-        let ast = parse_int_exp(&mut result.into_iter().peekable()).unwrap();
-        assert_eq!(ast, Int(expected_ast));
+    #[test]
+    fn test_parse_ident() {
+        let inputs = vec![String::from("x"), String::from("result")];
+        let expected_tokens = inputs
+            .iter()
+            .map(|s| Token::new(TokenKind::IDENT, s.to_string(), 0, s.len()))
+            .collect::<Vec<Token>>();
+        for (i, _) in inputs.iter().enumerate() {
+            let expected_ast = Identifier::new(expected_tokens[i].clone());
+            let result = lexer::lex(&inputs[i]);
+            let ast = parse_ident_exp(&mut result.into_iter().peekable()).unwrap();
+            assert_eq!(ast, Ident(expected_ast));
+        }
     }
-}
 
-#[test]
-fn test_parse_function() {
-    use super::lexer;
-    let input = String::from("fn(x, y) { x; } ");
-    let result = lexer::lex(&input);
-    let a = parse_function_exp(&mut result.into_iter().peekable()).unwrap();
-    match a {
-        Function(_) => {}
-        err => panic!(format!("test failed. reason [{:?}]", err)),
+    #[test]
+    fn test_parse_int() {
+        let inputs = vec![String::from("0"), String::from("12")];
+        let expected_tokens = inputs
+            .iter()
+            .map(|s| Token::new(TokenKind::INT, s.to_string(), 0, s.len()))
+            .collect::<Vec<Token>>();
+        for (i, _) in inputs.iter().enumerate() {
+            let expected_ast = IntegerLiteral::new(expected_tokens[i].clone());
+            let result = lexer::lex(&inputs[i]);
+            let ast = parse_int_exp(&mut result.into_iter().peekable()).unwrap();
+            assert_eq!(ast, Int(expected_ast));
+        }
     }
-}
 
-#[test]
-fn test_parse_call() {
-    use super::lexer;
-    let id_token = Token::new(TokenKind::IDENT, "function".to_string(), 0, 8);
-    let id_exp = Ident(Identifier::new(id_token));
-    let input = String::from("(5,6)");
-    let result = lexer::lex(&input);
-    let a = parse_call_exp(&mut result.into_iter().peekable(), id_exp).unwrap();
-    match a {
-        Call(_) => {}
-        err => panic!(format!("test failed. reason [{:?}]", err)),
+    #[test]
+    fn test_parse_function() {
+        let input = String::from("fn(x, y) { x; } ");
+        let result = lexer::lex(&input);
+        let a = parse_function_exp(&mut result.into_iter().peekable()).unwrap();
+        match a {
+            Function(_) => {}
+            err => panic!(format!("test failed. reason [{:?}]", err)),
+        }
     }
-}
 
-#[test]
-fn test_parse() {
-    use super::lexer;
-    let input = String::from(
-        r#"
+    #[test]
+    fn test_parse_call() {
+        let id_token = Token::new(TokenKind::IDENT, "function".to_string(), 0, 8);
+        let id_exp = Ident(Identifier::new(id_token));
+        let input = String::from("(5,6)");
+        let result = lexer::lex(&input);
+        let a = parse_call_exp(&mut result.into_iter().peekable(), id_exp).unwrap();
+        match a {
+            Call(_) => {}
+            err => panic!(format!("test failed. reason [{:?}]", err)),
+        }
+    }
+
+    #[test]
+    fn test_parse() {
+        let input = String::from(
+            r#"
     fn(x,y) { x; }(2,3);
     "#,
-    );
-    parse_program(lexer::lex(&input)).unwrap();
-}
+        );
+        parse_program(lexer::lex(&input)).unwrap();
+    }
 
-#[test]
-fn test_parse_block() {
-    use super::lexer;
-    let input = String::from("{y; x; }");
-    let result = lexer::lex(&input);
-    parse_block(&mut result.into_iter().peekable()).unwrap();
-}
+    #[test]
+    fn test_parse_block() {
+        let input = String::from("{y; x; }");
+        let result = lexer::lex(&input);
+        parse_block(&mut result.into_iter().peekable()).unwrap();
+    }
 
-#[test]
-fn test_parse_let() {
-    use super::lexer;
-    let input = String::from("let x = 0;");
-    let result = lexer::lex(&input);
-    parse_let_stmt(&mut result.into_iter().peekable()).unwrap();
-    parse_program(lexer::lex(&input)).unwrap();
-}
+    #[test]
+    fn test_parse_let() {
+        let input = String::from("let x = 0;");
+        let result = lexer::lex(&input);
+        parse_let_stmt(&mut result.into_iter().peekable()).unwrap();
+        parse_program(lexer::lex(&input)).unwrap();
+    }
 
-#[test]
-fn test_parse_return() {
-    use super::lexer;
-    let input = String::from("return 1;");
-    let result = lexer::lex(&input);
-    parse_return_stmt(&mut result.into_iter().peekable()).unwrap();
+    #[test]
+    fn test_parse_return() {
+        let input = String::from("return 1;");
+        let result = lexer::lex(&input);
+        parse_return_stmt(&mut result.into_iter().peekable()).unwrap();
 
-    parse_program(lexer::lex(&input)).unwrap();
-}
+        parse_program(lexer::lex(&input)).unwrap();
+    }
 
-#[test]
-fn test_parse_if() {
-    use super::lexer;
-    let input = String::from("if (true) { 1; } else { 2; }");
-    let result = lexer::lex(&input);
-    parse_program(result).unwrap();
-}
+    #[test]
+    fn test_parse_if() {
+        let input = String::from("if (true) { 1; } else { 2; }");
+        let result = lexer::lex(&input);
+        parse_program(result).unwrap();
+    }
 
-#[test]
-fn test_parse_blockstmt() {
-    use super::lexer;
-    let input = String::from("{1;}");
-    let result = lexer::lex(&input);
-    parse_program(result).unwrap();
-}
+    #[test]
+    fn test_parse_blockstmt() {
+        let input = String::from("{1;}");
+        let result = lexer::lex(&input);
+        parse_program(result).unwrap();
+    }
 
-#[test]
-fn test_parse_empty() {
-    use super::lexer;
-    let input = String::from(";;;;");
-    let result = lexer::lex(&input);
-    let ast = parse_program(result).unwrap();
-    assert_eq!(0, ast.len());
+    #[test]
+    fn test_parse_empty() {
+        let input = String::from(";;;;");
+        let result = lexer::lex(&input);
+        let ast = parse_program(result).unwrap();
+        assert_eq!(0, ast.len());
+    }
 }
