@@ -1,4 +1,4 @@
-use super::object::Object;
+use crate::object::Object;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;

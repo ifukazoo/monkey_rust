@@ -1,5 +1,5 @@
-use super::ast::*;
-use super::env::*;
+use crate::ast::*;
+use crate::env::*;
 use std::fmt;
 
 /// オブジェクト (monkey言語interpreterでの値)

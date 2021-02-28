@@ -1,6 +1,6 @@
-use super::error::*;
-use super::object::Object;
-use super::*;
+use crate::error::*;
+use crate::object::Object;
+use crate::*;
 use std::io::BufReader;
 use std::io::Read;
 

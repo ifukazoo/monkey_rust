@@ -1,9 +1,9 @@
-use super::ast::Expression::*;
-use super::ast::Program;
-use super::ast::Statement::*;
-use super::ast::*;
-use super::lexer::LexResult;
-use super::token::{Token, TokenKind, TokenKind::*};
+use crate::ast::Expression::*;
+use crate::ast::Program;
+use crate::ast::Statement::*;
+use crate::ast::*;
+use crate::lexer::LexResult;
+use crate::token::{Token, TokenKind, TokenKind::*};
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 use std::fmt;
@@ -426,8 +426,9 @@ fn get_priority(kind: TokenKind) -> Priority {
 
 #[cfg(test)]
 mod test {
-    use super::super::lexer;
     use super::*;
+    use crate::lexer;
+    use crate::token::*;
 
     #[test]
     fn test_parse_ident() {

@@ -1,5 +1,5 @@
-use super::eval::EvalError;
-use super::parser::ParseError;
+use crate::eval::EvalError;
+use crate::parser::ParseError;
 use std::fmt;
 use std::io;
 

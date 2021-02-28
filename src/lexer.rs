@@ -1,4 +1,4 @@
-use super::token::*;
+use crate::token::*;
 use std::iter::Peekable;
 
 /// 字句解析結果

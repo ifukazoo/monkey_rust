@@ -1,5 +1,5 @@
-use super::token::Token;
-use super::token::TokenKind;
+use crate::token::Token;
+use crate::token::TokenKind;
 use std::fmt;
 
 /// プログラム

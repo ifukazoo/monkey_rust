@@ -1,9 +1,9 @@
-use super::ast::Expression::*;
-use super::ast::Statement::*;
-use super::ast::*;
-use super::env;
-use super::env::RefEnvironment;
-use super::object::Object;
+use crate::ast::Expression::*;
+use crate::ast::Statement::*;
+use crate::ast::*;
+use crate::env;
+use crate::env::RefEnvironment;
+use crate::object::Object;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -119,7 +119,7 @@ fn eval_exp(exp: Expression, env: &RefEnvironment) -> Result<Object, EvalError> 
 }
 
 fn eval_prefix(pexp: PrefixExpression, env: &RefEnvironment) -> Result<Object, EvalError> {
-    use super::ast::UnOp::*;
+    use crate::ast::UnOp::*;
     let ope_str: String = pexp.operator.to_string();
     let val = eval_exp(*pexp.right, env)?;
     match val {
@@ -163,7 +163,7 @@ fn eval_calling_function(c: CallFunction, env: &RefEnvironment) -> Result<Object
 }
 
 fn eval_infix(exp: InfixExpression, env: &RefEnvironment) -> Result<Object, EvalError> {
-    use super::ast::BinOp::*;
+    use crate::ast::BinOp::*;
     let left = eval_exp(*exp.left, env)?;
     let right = eval_exp(*exp.right, env)?;
 
@@ -207,9 +207,10 @@ fn eval_infix(exp: InfixExpression, env: &RefEnvironment) -> Result<Object, Eval
 
 #[cfg(test)]
 mod test {
-    use super::super::lexer;
-    use super::super::parser;
     use super::*;
+    use crate::lexer;
+    use crate::object::*;
+    use crate::parser;
 
     #[test]
     fn test_eval_int() {
