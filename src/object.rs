@@ -9,6 +9,8 @@ pub enum Object {
     Int(i64),
     /// ブール
     Bool(bool),
+    /// 文字列
+    Str(String),
     /// クロージャー
     Closure(FunctionLiteral, RefEnvironment),
     /// リターン値
@@ -21,9 +23,10 @@ impl fmt::Display for Object {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::Int(i) => write!(f, "{}", i),
-            Self::Return(r) => write!(f, "return({})", *r),
             Self::Bool(b) => write!(f, "{}", b),
+            Self::Str(s) => write!(f, "{}", s),
             Self::Null => write!(f, "null"),
+            Self::Return(r) => write!(f, "return({})", *r),
             Self::Closure(func, _) => {
                 write!(f, "closure{{")?;
                 write!(f, "fn:{}", func)?;

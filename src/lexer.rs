@@ -193,18 +193,13 @@ where
         pos += 1;
         if c == '\\' {
             // エスケープ文字の処理
-            match input.next() {
-                None => break, // 不完全なエスケープ
-                Some(nextc) => {
-                    s.push(nextc);
-                    pos += 1;
-                }
+            if let Some('\\') | Some('"') = input.peek() {
+                s.push(input.next().unwrap());
+                pos += 1;
             }
-        } else {
-            if c == '"' {
-                // 終了
-                return (Token::new(STRING, s, start, pos), pos);
-            }
+        } else if c == '"' {
+            // 終了
+            return (Token::new(STRING, s, start, pos), pos);
         }
     }
     (Token::new(ILLEGAL, s, start, pos), pos)

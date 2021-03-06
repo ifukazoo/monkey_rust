@@ -184,6 +184,7 @@ where
         Some(INT) => parse_int_exp(tokens),
         Some(TRUE) => parse_bool_exp(tokens, TRUE),
         Some(FALSE) => parse_bool_exp(tokens, FALSE),
+        Some(STRING) => parse_str_exp(tokens),
         Some(IDENT) => parse_ident_exp(tokens),
         Some(LPAREN) => parse_group_exp(tokens),
         Some(FUNCTION) => parse_function_exp(tokens),
@@ -231,6 +232,14 @@ where
 {
     let token = expect_next(tokens, INT)?;
     Ok(Int(IntegerLiteral::new(token)))
+}
+
+fn parse_str_exp<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Expression, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    let token = expect_next(tokens, STRING)?;
+    Ok(Str(StringLiteral::new(token)))
 }
 
 fn parse_bool_exp<Tokens>(
@@ -457,6 +466,25 @@ mod test {
             let result = lexer::lex(&inputs[i]);
             let ast = parse_int_exp(&mut result.into_iter().peekable()).unwrap();
             assert_eq!(ast, Int(expected_ast));
+        }
+    }
+
+    #[test]
+    fn test_parse_str() {
+        let inputs = vec![
+            String::from("\"hello\""),
+            String::from("\"a\""),
+            String::from("\"\\\\\""),
+        ];
+        let expected_tokens = inputs
+            .iter()
+            .map(|s| Token::new(TokenKind::STRING, s.to_string(), 0, s.len()))
+            .collect::<Vec<Token>>();
+        for (i, _) in inputs.iter().enumerate() {
+            let expected_ast = StringLiteral::new(expected_tokens[i].clone());
+            let result = lexer::lex(&inputs[i]);
+            let ast = parse_str_exp(&mut result.into_iter().peekable()).unwrap();
+            assert_eq!(ast, Str(expected_ast));
         }
     }
 

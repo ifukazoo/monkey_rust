@@ -14,6 +14,8 @@ pub enum EvalError {
     IllegalUnaryOperation(String, String),
     /// 二項演算エラー (Left, Operator, Right)
     IllegalBinaryOperation(String, String, String),
+    /// 文字列エスケープ不正
+    IllegalStringEscape(String),
     /// 不正な構文 (エラーの理由)
     IllegalSyntax(String),
     /// ゼロ除算 (diviend)
@@ -34,6 +36,7 @@ impl fmt::Display for EvalError {
                     left, operator, right
                 )
             }
+            Self::IllegalStringEscape(literal) => write!(f, "illegal string escape:{}", literal),
             Self::IllegalSyntax(cause) => write!(f, "illegal syntax:{}", cause),
             Self::ZeroDivision(diviend) => write!(f, "zero division:{}/0", diviend),
             Self::NameError(s) => write!(f, "undefined name:`{}`", s),
@@ -107,6 +110,10 @@ fn eval_exp(exp: Expression, env: &RefEnvironment) -> Result<Object, EvalError> 
     match exp {
         Int(n) => Ok(Object::Int(n.value)),
         Bool(b) => Ok(Object::Bool(b.value)),
+        Str(s) => match create_string(&s.value) {
+            Ok(s) => Ok(Object::Str(s)),
+            Err(e) => Err(e),
+        },
         Ident(i) => match env::get_value(&env, &i.symbol()) {
             Some(v) => Ok(v),
             None => Err(EvalError::NameError(i.symbol())),
@@ -201,8 +208,39 @@ fn eval_infix(exp: InfixExpression, env: &RefEnvironment) -> Result<Object, Eval
             },
             _ => Err(err),
         },
+        Object::Str(l) => match right {
+            Object::Str(r) => match exp.operator {
+                Add => Ok(Object::Str(format!("{}{}", l, r))),
+                Gt => Ok(Object::Bool(l > r)),
+                Lt => Ok(Object::Bool(l < r)),
+                Eq => Ok(Object::Bool(l == r)),
+                NotEq => Ok(Object::Bool(l != r)),
+                _ => Err(err),
+            },
+            _ => Err(err),
+        },
         _ => Err(err),
     }
+}
+
+fn create_string(literal: &str) -> Result<String, EvalError> {
+    let mut chars = literal.chars().peekable();
+    let mut s = String::new();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => match chars.next() {
+                Some('\\') => s.push('\\'),
+                Some('\"') => s.push('"'),
+                Some('n') => s.push('\n'),
+                Some('r') => s.push('\r'),
+                Some('t') => s.push('\t'),
+                Some(_) => return Err(EvalError::IllegalStringEscape(literal.to_string())),
+                None => return Err(EvalError::IllegalStringEscape(literal.to_string())),
+            },
+            _ => s.push(c),
+        }
+    }
+    Ok(s)
 }
 
 #[cfg(test)]
@@ -238,6 +276,40 @@ mod test {
             let ast = parser::parse_program(tokens).unwrap();
             let obj = eval_program(ast).unwrap();
             assert_eq!(expected, obj);
+        }
+    }
+    #[test]
+    fn test_eval_string() {
+        let tests = vec![
+            ("\"hello\";", Object::Str(String::from("hello"))),
+            (r#" "hello"; "#, Object::Str(String::from("hello"))),
+            (
+                r#" "hello \"world\""; "#,
+                Object::Str(String::from("hello \"world\"")),
+            ),
+            (r#" "\\" ; "#, Object::Str(String::from("\\"))),
+            (r#""\\\\";"#, Object::Str(String::from("\\\\"))),
+            (r#""\n";"#, Object::Str(String::from("\n"))),
+        ];
+        for (input, expected) in tests {
+            let tokens = lexer::lex(&input);
+            let ast = parser::parse_program(tokens).unwrap();
+            let obj = eval_program(ast).unwrap();
+            assert_eq!(expected, obj);
+        }
+    }
+    #[test]
+    fn test_eval_string_err() {
+        let tests = vec![
+            r#" "\a"; "#, //
+            r#" "\\\  "; "#,
+        ];
+        for input in tests {
+            let tokens = lexer::lex(&input);
+            let ast = parser::parse_program(tokens).unwrap();
+            if let Ok(obj) = eval_program(ast) {
+                panic!("should panic. but {}", obj);
+            }
         }
     }
 
@@ -298,6 +370,18 @@ mod test {
             ("(1 < 2) == false;", Object::Bool(false)),
             ("(1 > 2) == true;", Object::Bool(false)),
             ("(1 > 2) == false;", Object::Bool(true)),
+            (
+                r#" "hello" + "world"; "#,
+                Object::Str(String::from("helloworld")),
+            ),
+            (
+                r#" "hello" + "," + "world"; "#,
+                Object::Str(String::from("hello,world")),
+            ),
+            (r#" "abc" == "abc"; "#, Object::Bool(true)),
+            (r#" "abc" != "abc"; "#, Object::Bool(false)),
+            (r#" "abc" < "bca"; "#, Object::Bool(true)),
+            (r#" "abc" > "bca"; "#, Object::Bool(false)),
         ];
         for (input, expected) in tests {
             let tokens = lexer::lex(&input);

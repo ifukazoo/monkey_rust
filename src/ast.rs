@@ -29,6 +29,8 @@ pub enum Expression {
     Bool(BoolLiteral),
     /// 整数式
     Int(IntegerLiteral),
+    /// 文字列式
+    Str(StringLiteral),
     /// 変数式
     Ident(Identifier),
     /// 関数式
@@ -174,6 +176,25 @@ impl BoolLiteral {
     pub fn new(token: Token) -> Self {
         Self {
             value: token.literal.parse::<bool>().unwrap(),
+            token,
+        }
+    }
+}
+
+/// 文字列リテラル
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StringLiteral {
+    token: Token,
+    pub value: String,
+}
+impl StringLiteral {
+    pub fn new(token: Token) -> Self {
+        // 両端のダブルクオートを外す
+        // "hello" => hello
+        // "\"hello\"" => "hello"
+        let s = &token.literal[1..token.literal.len() - 1];
+        Self {
+            value: String::from(s),
             token,
         }
     }
