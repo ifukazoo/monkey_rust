@@ -73,7 +73,7 @@ pub fn lex(input: &str) -> LexResult {
 
 // 数列
 // 0, 1, 12, 01, ...
-fn lex_int<'a, Tokens>(input: &mut Peekable<Tokens>, start: usize) -> (Token, usize)
+fn lex_int<Tokens>(input: &mut Peekable<Tokens>, start: usize) -> (Token, usize)
 where
     Tokens: Iterator<Item = char>,
 {
