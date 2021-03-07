@@ -13,7 +13,7 @@ pub fn start<R: Read, W: Write>(
     let prompt = ">>";
     let env = env::new_env(HashMap::new());
     loop {
-        writer.write(prompt.as_bytes())?;
+        writer.write_all(prompt.as_bytes())?;
         writer.flush()?;
         let mut line = String::new();
         let size = reader.read_line(&mut line)?;
@@ -22,26 +22,26 @@ pub fn start<R: Read, W: Write>(
             break;
         }
         let lex_result = lexer::lex(&line);
-        writer.write("success lex\n".as_bytes())?;
+        writer.write_all(b"success lex\n")?;
         for token in &lex_result {
-            writer.write(format!("{}\n", token).as_bytes())?;
+            writer.write_all(format!("{}\n", token).as_bytes())?;
         }
         match parser::parse_program(lex_result) {
             Ok(ast) => {
-                writer.write("success parse\n".as_bytes())?;
-                writer.write(format!("{:?}\n", ast).as_bytes())?;
+                writer.write_all(b"success parse\n")?;
+                writer.write_all(format!("{:?}\n", ast).as_bytes())?;
                 match eval::eval_statements(ast, &env) {
                     Ok(obj) => {
-                        writer.write("success eval\n".as_bytes())?;
-                        writer.write(format!("{}\n", obj).as_bytes())?;
+                        writer.write_all(b"success eval\n")?;
+                        writer.write_all(format!("{}\n", obj).as_bytes())?;
                     }
                     Err(e) => {
-                        writer.write(format!("{:?}\n", e).as_bytes())?;
+                        writer.write_all(format!("{:?}\n", e).as_bytes())?;
                     }
                 }
             }
             Err(e) => {
-                writer.write(format!("{:?}\n", e).as_bytes())?;
+                writer.write_all(format!("{:?}\n", e).as_bytes())?;
             }
         }
     }
