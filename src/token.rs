@@ -68,7 +68,7 @@ impl Token {
         }
     }
     pub fn location(&self) -> (usize, usize) {
-        (*&self.loc.0, *&self.loc.1)
+        (self.loc.0, self.loc.1)
     }
 }
 
