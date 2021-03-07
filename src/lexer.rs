@@ -34,7 +34,7 @@ pub fn lex(input: &str) -> LexResult {
     macro_rules! next_char {
         () => {{
             peekable.next().unwrap();
-            pos = pos + 1;
+            pos += 1;
         }};
     }
 
