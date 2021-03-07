@@ -74,7 +74,7 @@ pub fn parse_program(lex_result: LexResult) -> Result<Program, ParseError> {
     let mut tokens = tokens.into_iter().peekable();
 
     let mut program = vec![];
-    while let Some(_) = tokens.peek() {
+    while tokens.peek().is_some() {
         let statement = parse_statement(&mut tokens)?;
         match statement {
             Statement::Empty => {}
