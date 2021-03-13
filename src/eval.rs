@@ -1,6 +1,7 @@
 use crate::ast::Expression::*;
 use crate::ast::Statement::*;
 use crate::ast::*;
+use crate::builtin;
 use crate::env;
 use crate::env::RefEnvironment;
 use crate::object::Object;
@@ -142,35 +143,25 @@ fn eval_prefix(pexp: PrefixExpression, env: &RefEnvironment) -> Result<Object, E
         _ => Err(EvalError::IllegalUnaryOperation(ope_str, val.to_string())),
     }
 }
-
 fn eval_calling_function(c: CallFunction, env: &RefEnvironment) -> Result<Object, EvalError> {
-    // クロージャーを取り出す
-    let (func, closed_env) = match eval_exp(*c.func, env)? {
-        Object::Closure(f, e) => (f, e),
+    // クロージャー or ビルトイン関数を取り出す
+    match eval_exp(*c.func, env)? {
+        Object::Closure(f, e) => eval_closure(f.block, f.params, &e, c.args, &env),
         Object::Return(r) => match *r {
-            Object::Closure(f, e) => (f, e),
-            _ => unreachable!(),
+            Object::Closure(f, e) => eval_closure(f.block, f.params, &e, c.args, &env),
+            _ => {
+                return Err(EvalError::IllegalSyntax(String::from(
+                    "prev exp is not a function",
+                )))
+            }
         },
+        Object::Builtin(s) => eval_builtin(&s, c.args, &env),
         _ => {
             return Err(EvalError::IllegalSyntax(String::from(
                 "prev exp is not a function",
             )))
         }
-    };
-
-    // 実引数の評価
-    let mut hash = HashMap::new();
-    for (param, arg) in (func.params).into_iter().zip(c.args.into_iter()) {
-        let obj = eval_exp(arg, env)?;
-        hash.insert(param.symbol(), obj);
     }
-
-    // 実引数を評価した環境にクロージャーの定義環境を追加
-    let new_env = env::new_env(hash);
-    env::add_outer(&new_env, &closed_env);
-
-    // クロージャーブロックを評価
-    eval_statements(func.block, &new_env)
 }
 
 fn eval_infix(exp: InfixExpression, env: &RefEnvironment) -> Result<Object, EvalError> {
@@ -225,6 +216,42 @@ fn eval_infix(exp: InfixExpression, env: &RefEnvironment) -> Result<Object, Eval
         },
         _ => Err(err),
     }
+}
+
+fn eval_closure(
+    block: Vec<Statement>,
+    params: Vec<Identifier>,
+    closed: &RefEnvironment,
+    args: Vec<Expression>,
+    env: &RefEnvironment,
+) -> Result<Object, EvalError> {
+    // 実引数の評価
+    let mut hash = HashMap::new();
+    for (param, arg) in (params).into_iter().zip(args.into_iter()) {
+        let obj = eval_exp(arg, env)?;
+        hash.insert(param.symbol(), obj);
+    }
+
+    // 実引数を評価した環境にクロージャーの定義環境を追加
+    let new_env = env::new_env(hash);
+    env::add_outer(&new_env, &closed);
+
+    // クロージャーブロックを評価
+    eval_statements(block, &new_env)
+}
+
+fn eval_builtin(
+    name: &str,
+    args: Vec<Expression>,
+    env: &RefEnvironment,
+) -> Result<Object, EvalError> {
+    // 実引数の評価
+    let mut evaluated_args = Vec::new();
+    for arg in args.into_iter() {
+        let obj = eval_exp(arg, env)?;
+        evaluated_args.push(obj);
+    }
+    builtin::exec(name, evaluated_args)
 }
 
 fn create_string(literal: &str) -> Result<String, EvalError> {
@@ -606,4 +633,73 @@ mod test {
     }
     // TODO 実行時エラーのテスト.
     // zero divideとか, 束縛してない,とか
+
+    #[test]
+    fn test_eval_builtin_ok() {
+        use lexer;
+        use parser;
+        let tests = vec![
+            (
+                r#"
+            len("hello");
+             "#,
+                Object::Int(5),
+            ),
+            (
+                r#"
+            len("");
+             "#,
+                Object::Int(0),
+            ),
+            (
+                r#"
+            len("こんにちは，世界");
+             "#,
+                Object::Int(8),
+            ),
+        ];
+        for (input, expected) in tests.into_iter() {
+            let ast = parser::parse_program(lexer::lex(&input)).unwrap();
+            match eval_program(ast) {
+                Ok(obj) => assert_eq!(expected, obj),
+                _ => panic!(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_eval_builtin_ng() {
+        use lexer;
+        use parser;
+        let tests = vec![
+            (
+                r#"
+            len(1);
+             "#,
+                EvalError::IllegalSyntax("".to_string()),
+            ),
+            (
+                r#"
+            len(true);
+             "#,
+                EvalError::IllegalSyntax("".to_string()),
+            ),
+            (
+                r#"
+            len();
+             "#,
+                EvalError::IllegalSyntax("".to_string()),
+            ),
+        ];
+        for (input, expected) in tests.into_iter() {
+            let ast = parser::parse_program(lexer::lex(&input)).unwrap();
+            match eval_program(ast) {
+                Ok(_) => panic!("expects failure, but success."),
+                Err(e) => match e {
+                    EvalError::IllegalSyntax(_) => {}
+                    _ => panic!("expects {} but [{}].", expected, e),
+                },
+            }
+        }
+    }
 }

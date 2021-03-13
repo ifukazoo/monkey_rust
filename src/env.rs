@@ -1,3 +1,4 @@
+use crate::builtin;
 use crate::object::Object;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -55,7 +56,7 @@ pub fn get_value(env: &RefEnvironment, key: &str) -> Option<Object> {
         // 外の環境を一階層再帰的に参照
         None => match &env.borrow().outer {
             Some(outer) => get_value(&outer, key),
-            None => None,
+            None => builtin::get(key),
         },
     }
 }

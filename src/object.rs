@@ -15,6 +15,8 @@ pub enum Object {
     Closure(FunctionLiteral, RefEnvironment),
     /// リターン値
     Return(Box<Object>),
+    /// ビルトイン関数
+    Builtin(String),
     /// NULL
     Null,
 }
@@ -31,6 +33,9 @@ impl fmt::Display for Object {
                 write!(f, "closure{{")?;
                 write!(f, "fn:{}", func)?;
                 write!(f, "}}")
+            }
+            Self::Builtin(s) => {
+                write!(f, "builtin({})", s)
             }
         }
     }
