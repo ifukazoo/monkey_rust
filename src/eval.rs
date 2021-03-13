@@ -151,7 +151,11 @@ fn eval_calling_function(c: CallFunction, env: &RefEnvironment) -> Result<Object
             Object::Closure(f, e) => (f, e),
             _ => unreachable!(),
         },
-        _ => unreachable!(),
+        _ => {
+            return Err(EvalError::IllegalSyntax(String::from(
+                "prev exp is not a function",
+            )))
+        }
     };
 
     // 実引数の評価
