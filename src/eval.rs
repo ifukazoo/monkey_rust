@@ -657,6 +657,12 @@ mod test {
              "#,
                 Object::Int(8),
             ),
+            (
+                r#"
+            len("hello" + "," + "世界");
+             "#,
+                Object::Int(8),
+            ),
         ];
         for (input, expected) in tests.into_iter() {
             let ast = parser::parse_program(lexer::lex(&input)).unwrap();

@@ -1,20 +1,25 @@
 use crate::eval::EvalError;
 use crate::object::Object;
 
+const FUNCTION_LEN: &str = "len";
+
+/// ビルトイン関数の名前を返す
 pub fn get(key: &str) -> Option<Object> {
-    match key.as_ref() {
-        "len" => Some(Object::Builtin(String::from(key))),
+    match key {
+        FUNCTION_LEN => Some(Object::Builtin(String::from(FUNCTION_LEN))),
         _ => None,
     }
 }
 
+/// getで返した名前が渡される．
 pub fn exec(name: &str, args: Vec<Object>) -> Result<Object, EvalError> {
     match name {
-        "len" => len(args),
-        _ => unreachable!(format!("builtin name is already checked. but[{}]", name)),
+        FUNCTION_LEN => len(args),
+        _ => Err(EvalError::NameError(String::from(name))),
     }
 }
 
+/// 実装
 fn len(args: Vec<Object>) -> Result<Object, EvalError> {
     if args.len() != 1 {
         return Err(EvalError::IllegalSyntax(format!(
