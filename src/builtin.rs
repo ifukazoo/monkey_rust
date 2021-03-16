@@ -11,7 +11,7 @@ pub fn get(key: &str) -> Option<Object> {
     }
 }
 
-/// getで返した名前が渡される．
+/// getで返した名前を渡す．名前に応じた処理を施す．
 pub fn exec(name: &str, args: Vec<Object>) -> Result<Object, EvalError> {
     match name {
         FUNCTION_LEN => len(args),
@@ -19,7 +19,6 @@ pub fn exec(name: &str, args: Vec<Object>) -> Result<Object, EvalError> {
     }
 }
 
-/// 実装
 fn len(args: Vec<Object>) -> Result<Object, EvalError> {
     if args.len() != 1 {
         return Err(EvalError::IllegalSyntax(format!(
