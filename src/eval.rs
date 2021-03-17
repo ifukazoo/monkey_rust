@@ -4,6 +4,7 @@ use crate::ast::*;
 use crate::builtin;
 use crate::env;
 use crate::env::RefEnvironment;
+use crate::object::ClosureValue;
 use crate::object::Object;
 use std::collections::HashMap;
 use std::fmt;
@@ -121,7 +122,13 @@ fn eval_exp(exp: Expression, env: &RefEnvironment) -> Result<Object, EvalError> 
         },
         Prefix(pexp) => eval_prefix(pexp, env),
         Infix(exp) => eval_infix(exp, env),
-        Function(f) => Ok(Object::Closure(f, env.clone())),
+
+        Function(f) => Ok(Object::Closure(ClosureValue::new(
+            &f.to_string(),
+            f.params,
+            f.block,
+            env.clone(),
+        ))),
         Call(c) => eval_calling_function(c, env),
     }
 }
@@ -143,19 +150,20 @@ fn eval_prefix(pexp: PrefixExpression, env: &RefEnvironment) -> Result<Object, E
         _ => Err(EvalError::IllegalUnaryOperation(ope_str, val.to_string())),
     }
 }
-fn eval_calling_function(c: CallFunction, env: &RefEnvironment) -> Result<Object, EvalError> {
+
+fn eval_calling_function(call: CallFunction, env: &RefEnvironment) -> Result<Object, EvalError> {
     // クロージャー or ビルトイン関数を取り出す
-    match eval_exp(*c.func, env)? {
-        Object::Closure(f, e) => eval_closure(f.block, f.params, &e, c.args, &env),
+    match eval_exp(*call.func, env)? {
+        Object::Closure(closure) => eval_closure(closure, call.args, &env),
         Object::Return(r) => match *r {
-            Object::Closure(f, e) => eval_closure(f.block, f.params, &e, c.args, &env),
+            Object::Closure(closure) => eval_closure(closure, call.args, &env),
             _ => {
                 return Err(EvalError::IllegalSyntax(String::from(
                     "prev exp is not a function",
                 )))
             }
         },
-        Object::Builtin(s) => eval_builtin(&s, c.args, &env),
+        Object::Builtin(s) => eval_builtin(&s, call.args, &env),
         _ => {
             return Err(EvalError::IllegalSyntax(String::from(
                 "prev exp is not a function",
@@ -219,25 +227,23 @@ fn eval_infix(exp: InfixExpression, env: &RefEnvironment) -> Result<Object, Eval
 }
 
 fn eval_closure(
-    block: Vec<Statement>,
-    params: Vec<Identifier>,
-    closed: &RefEnvironment,
+    closure: ClosureValue,
     args: Vec<Expression>,
     env: &RefEnvironment,
 ) -> Result<Object, EvalError> {
     // 実引数の評価
     let mut hash = HashMap::new();
-    for (param, arg) in (params).into_iter().zip(args.into_iter()) {
+    for (param, arg) in closure.params.into_iter().zip(args.into_iter()) {
         let obj = eval_exp(arg, env)?;
         hash.insert(param.symbol(), obj);
     }
 
     // 実引数を評価した環境にクロージャーの定義環境を追加
     let new_env = env::new_env(hash);
-    env::add_outer(&new_env, &closed);
+    env::add_outer(&new_env, &closure.env);
 
     // クロージャーブロックを評価
-    eval_statements(block, &new_env)
+    eval_statements(closure.block, &new_env)
 }
 
 fn eval_builtin(

@@ -12,7 +12,7 @@ pub enum Object {
     /// 文字列
     Str(String),
     /// クロージャー
-    Closure(FunctionLiteral, RefEnvironment),
+    Closure(ClosureValue),
     /// リターン値
     Return(Box<Object>),
     /// ビルトイン関数
@@ -29,14 +29,39 @@ impl fmt::Display for Object {
             Self::Str(s) => write!(f, "{}", s),
             Self::Null => write!(f, "null"),
             Self::Return(r) => write!(f, "return({})", *r),
-            Self::Closure(func, _) => {
-                write!(f, "closure{{")?;
-                write!(f, "fn:{}", func)?;
-                write!(f, "}}")
-            }
+            Self::Closure(c) => write!(f, "{}", c.to_string()),
             Self::Builtin(s) => {
                 write!(f, "builtin({})", s)
             }
         }
+    }
+}
+
+/// 関数定義
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClosureValue {
+    print: String,
+    pub params: Vec<Identifier>,
+    pub block: Vec<Statement>,
+    pub env: RefEnvironment,
+}
+impl ClosureValue {
+    pub fn new(
+        print: &str,
+        params: Vec<Identifier>,
+        block: Vec<Statement>,
+        env: RefEnvironment,
+    ) -> Self {
+        Self {
+            print: print.to_string(),
+            params,
+            block,
+            env,
+        }
+    }
+}
+impl fmt::Display for ClosureValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "closure{{fn:{}}}", self.print)
     }
 }
