@@ -227,6 +227,15 @@ fn eval_closure(
     args: Vec<Expression>,
     env: &RefEnvironment,
 ) -> Result<Object, EvalError> {
+    // 引数のチェック
+    if closure.params.len() != args.len() {
+        return Err(EvalError::IllegalSyntax(format!(
+            "closure requires {} args. but {} given",
+            closure.params.len(),
+            args.len()
+        )));
+    }
+
     // 実引数の評価
     let mut hash = HashMap::new();
     for (param, arg) in closure.params.into_iter().zip(args.into_iter()) {
