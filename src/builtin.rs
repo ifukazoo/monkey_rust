@@ -22,7 +22,7 @@ pub fn exec(name: &str, args: Vec<Object>) -> Result<Object, EvalError> {
 fn len(args: Vec<Object>) -> Result<Object, EvalError> {
     if args.len() != 1 {
         return Err(EvalError::IllegalSyntax(format!(
-            "len() requires 1 arg. but {} arg.",
+            "len() requires 1 arg. but {} args.",
             args.len()
         )));
     }
