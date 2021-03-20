@@ -92,12 +92,10 @@ fn eval_ifstatement(ifstmt: IfStatement, env: &RefEnvironment) -> Result<Object,
         Object::Bool(b) => {
             if b {
                 Ok(eval_statements(ifstmt.cons, env)?)
+            } else if let Some(alt) = ifstmt.alt {
+                Ok(eval_statements(alt, env)?)
             } else {
-                if let Some(alt) = ifstmt.alt {
-                    Ok(eval_statements(alt, env)?)
-                } else {
-                    Ok(Object::Null)
-                }
+                Ok(Object::Null)
             }
         }
         _ => Err(EvalError::IllegalSyntax(format!(
