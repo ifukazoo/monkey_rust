@@ -60,10 +60,10 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, literal: String, start: usize, end: usize) -> Self {
+    pub fn new(kind: TokenKind, literal: &str, start: usize, end: usize) -> Self {
         Self {
             kind,
-            literal,
+            literal: literal.to_string(),
             loc: Location(start, end),
         }
     }
@@ -82,6 +82,6 @@ impl fmt::Display for Token {
 fn test_disp() {
     assert_eq!(
         r#"{IF,0-1}"#,
-        format!("{}", Token::new(TokenKind::IF, "if".to_string(), 0, 1))
+        format!("{}", Token::new(TokenKind::IF, "if", 0, 1))
     );
 }

@@ -444,7 +444,7 @@ mod test {
         let inputs = vec![String::from("x"), String::from("result")];
         let expected_tokens = inputs
             .iter()
-            .map(|s| Token::new(TokenKind::IDENT, s.to_string(), 0, s.len()))
+            .map(|s| Token::new(TokenKind::IDENT, s, 0, s.len()))
             .collect::<Vec<Token>>();
         for (i, _) in inputs.iter().enumerate() {
             let expected_ast = Identifier::new(expected_tokens[i].clone());
@@ -459,7 +459,7 @@ mod test {
         let inputs = vec![String::from("0"), String::from("12")];
         let expected_tokens = inputs
             .iter()
-            .map(|s| Token::new(TokenKind::INT, s.to_string(), 0, s.len()))
+            .map(|s| Token::new(TokenKind::INT, s, 0, s.len()))
             .collect::<Vec<Token>>();
         for (i, _) in inputs.iter().enumerate() {
             let expected_ast = IntegerLiteral::new(expected_tokens[i].clone());
@@ -478,7 +478,7 @@ mod test {
         ];
         let expected_tokens = inputs
             .iter()
-            .map(|s| Token::new(TokenKind::STRING, s.to_string(), 0, s.len()))
+            .map(|s| Token::new(TokenKind::STRING, s, 0, s.len()))
             .collect::<Vec<Token>>();
         for (i, _) in inputs.iter().enumerate() {
             let expected_ast = StringLiteral::new(expected_tokens[i].clone());
@@ -501,7 +501,7 @@ mod test {
 
     #[test]
     fn test_parse_call() {
-        let id_token = Token::new(TokenKind::IDENT, "function".to_string(), 0, 8);
+        let id_token = Token::new(TokenKind::IDENT, "function", 0, 8);
         let id_exp = Ident(Identifier::new(id_token));
         let input = String::from("(5,6)");
         let result = lexer::lex(&input);

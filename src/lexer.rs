@@ -26,7 +26,7 @@ pub fn lex(input: &str) -> LexResult {
     // 1文字解析
     macro_rules! lex_a_char {
         ($ch:expr, $kind:expr) => {{
-            tokens.push(Token::new($kind, $ch.to_string(), pos, pos + 1));
+            tokens.push(Token::new($kind, &$ch.to_string(), pos, pos + 1));
             next_char!();
         }};
     }
@@ -90,7 +90,7 @@ where
             break;
         }
     }
-    (Token::new(INT, s, start, pos), pos)
+    (Token::new(INT, &s, start, pos), pos)
 }
 
 // アルファベットの列
@@ -113,14 +113,14 @@ where
         }
     }
     match s.as_str() {
-        "let" => (Token::new(LET, s, start, pos), pos),
-        "fn" => (Token::new(FUNCTION, s, start, pos), pos),
-        "if" => (Token::new(IF, s, start, pos), pos),
-        "else" => (Token::new(ELSE, s, start, pos), pos),
-        "true" => (Token::new(TRUE, s, start, pos), pos),
-        "false" => (Token::new(FALSE, s, start, pos), pos),
-        "return" => (Token::new(RETURN, s, start, pos), pos),
-        _ => (Token::new(IDENT, s, start, pos), pos),
+        "let" => (Token::new(LET, &s, start, pos), pos),
+        "fn" => (Token::new(FUNCTION, &s, start, pos), pos),
+        "if" => (Token::new(IF, &s, start, pos), pos),
+        "else" => (Token::new(ELSE, &s, start, pos), pos),
+        "true" => (Token::new(TRUE, &s, start, pos), pos),
+        "false" => (Token::new(FALSE, &s, start, pos), pos),
+        "return" => (Token::new(RETURN, &s, start, pos), pos),
+        _ => (Token::new(IDENT, &s, start, pos), pos),
     }
 }
 
@@ -140,12 +140,12 @@ where
             if c == '=' {
                 input.next().unwrap();
                 pos += 1;
-                (Token::new(EQ, String::from("=="), start, pos), pos)
+                (Token::new(EQ, "==", start, pos), pos)
             } else {
-                (Token::new(ASSIGN, String::from("="), start, pos), pos)
+                (Token::new(ASSIGN, "=", start, pos), pos)
             }
         }
-        None => (Token::new(ASSIGN, String::from("="), start, pos), pos),
+        None => (Token::new(ASSIGN, "=", start, pos), pos),
     }
 }
 
@@ -165,12 +165,12 @@ where
             if c == '=' {
                 input.next().unwrap();
                 pos += 1;
-                (Token::new(NOTEQ, String::from("!="), start, pos), pos)
+                (Token::new(NOTEQ, "!=", start, pos), pos)
             } else {
-                (Token::new(BANG, String::from("!"), start, pos), pos)
+                (Token::new(BANG, "!", start, pos), pos)
             }
         }
-        None => (Token::new(BANG, String::from("!"), start, pos), pos),
+        None => (Token::new(BANG, "!", start, pos), pos),
     }
 }
 
@@ -199,10 +199,10 @@ where
             }
         } else if c == '"' {
             // 終了
-            return (Token::new(STRING, s, start, pos), pos);
+            return (Token::new(STRING, &s, start, pos), pos);
         }
     }
-    (Token::new(ILLEGAL, s, start, pos), pos)
+    (Token::new(ILLEGAL, &s, start, pos), pos)
 }
 
 #[cfg(test)]
@@ -215,9 +215,9 @@ mod test {
         let tests = vec![(
             "ab = 1",
             vec![
-                Token::new(IDENT, String::from("ab"), 0, 2),
-                Token::new(ASSIGN, String::from("="), 3, 4),
-                Token::new(INT, String::from("1"), 5, 6),
+                Token::new(IDENT, "ab", 0, 2),
+                Token::new(ASSIGN, "=", 3, 4),
+                Token::new(INT, "1", 5, 6),
             ],
         )];
         for (input, expecteds) in tests.iter() {
@@ -233,9 +233,9 @@ mod test {
     fn test_lex_int() {
         use TokenKind::*;
         let tests = vec![
-            ("1", Token::new(INT, String::from("1"), 0, 1)),
-            ("0", Token::new(INT, String::from("0"), 0, 1)),
-            ("12", Token::new(INT, String::from("12"), 0, 2)),
+            ("1", Token::new(INT, "1", 0, 1)),
+            ("0", Token::new(INT, "0", 0, 1)),
+            ("12", Token::new(INT, "12", 0, 2)),
         ];
         for (input, expected) in tests {
             let mut p = input.chars().peekable();
@@ -248,14 +248,14 @@ mod test {
         use TokenKind::*;
 
         let tests = vec![
-            ("let", Token::new(LET, String::from("let"), 0, 3)),
-            ("fn", Token::new(FUNCTION, String::from("fn"), 0, 2)),
-            ("if", Token::new(IF, String::from("if"), 0, 2)),
-            ("else", Token::new(ELSE, String::from("else"), 0, 4)),
-            ("true", Token::new(TRUE, String::from("true"), 0, 4)),
-            ("false", Token::new(FALSE, String::from("false"), 0, 5)),
-            ("return", Token::new(RETURN, String::from("return"), 0, 6)),
-            ("var", Token::new(IDENT, String::from("var"), 0, 3)),
+            ("let", Token::new(LET, "let", 0, 3)),
+            ("fn", Token::new(FUNCTION, "fn", 0, 2)),
+            ("if", Token::new(IF, "if", 0, 2)),
+            ("else", Token::new(ELSE, "else", 0, 4)),
+            ("true", Token::new(TRUE, "true", 0, 4)),
+            ("false", Token::new(FALSE, "false", 0, 5)),
+            ("return", Token::new(RETURN, "return", 0, 6)),
+            ("var", Token::new(IDENT, "var", 0, 3)),
         ];
         for (input, expected) in tests {
             let mut p = input.chars().peekable();
@@ -267,26 +267,14 @@ mod test {
     fn test_string() {
         use TokenKind::*;
         let tests = vec![
-            (
-                r#""string""#,
-                vec![Token::new(STRING, String::from("\"string\""), 0, 8)],
-            ),
+            (r#""string""#, vec![Token::new(STRING, "\"string\"", 0, 8)]),
             (
                 r#""\"hello\"""#,
-                vec![Token::new(STRING, String::from("\"\\\"hello\\\"\""), 0, 11)],
+                vec![Token::new(STRING, "\"\\\"hello\\\"\"", 0, 11)],
             ),
-            (
-                r#""\n""#,
-                vec![Token::new(STRING, String::from("\"\\n\""), 0, 4)],
-            ),
-            (
-                r#""broken"#,
-                vec![Token::new(ILLEGAL, String::from("\"broken"), 0, 7)],
-            ),
-            (
-                r#""broken\"#,
-                vec![Token::new(ILLEGAL, String::from("\"broken\\"), 0, 8)],
-            ),
+            (r#""\n""#, vec![Token::new(STRING, "\"\\n\"", 0, 4)]),
+            (r#""broken"#, vec![Token::new(ILLEGAL, "\"broken", 0, 7)]),
+            (r#""broken\"#, vec![Token::new(ILLEGAL, "\"broken\\", 0, 8)]),
         ];
         for (input, expecteds) in tests.iter() {
             let tokens = lex(input);
