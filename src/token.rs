@@ -27,6 +27,8 @@ pub enum TokenKind {
 
     LBRACE,
     RBRACE,
+    LBRACKET,
+    RBRACKET,
 
     FUNCTION,
     LET,
