@@ -725,19 +725,33 @@ mod test {
     }
 
     #[test]
-    fn test_eval_array_literal() {
+    fn test_eval_array() {
         use lexer;
         use parser;
-        let tests = vec![(
-            r#"
+        let tests = vec![
+            (
+                r#"
             [1,"a", true];
              "#,
-            Object::Array(vec![
-                Object::Int(1),
-                Object::Str("a".to_string()),
-                Object::Bool(true),
-            ]),
-        )];
+                Object::Array(vec![
+                    Object::Int(1),
+                    Object::Str("a".to_string()),
+                    Object::Bool(true),
+                ]),
+            ),
+            (
+                r#"
+            [];
+             "#,
+                Object::Array(vec![]),
+            ),
+            (
+                r#"
+            [[1]];
+             "#,
+                Object::Array(vec![Object::Array(vec![Object::Int(1)])]),
+            ),
+        ];
         for (input, expected) in tests.into_iter() {
             let ast = parser::parse_program(lexer::lex(&input)).unwrap();
             match eval_program(ast) {
