@@ -108,7 +108,7 @@ pub struct BlockStatement {
 }
 impl BlockStatement {
     pub fn new(token: Token, statements: Vec<Statement>) -> Self {
-        BlockStatement { token, statements }
+        Self { token, statements }
     }
 }
 
@@ -323,7 +323,7 @@ pub struct CallFunction {
 }
 impl CallFunction {
     pub fn new(token: Token, func: Expression, args: Vec<Expression>) -> Self {
-        CallFunction {
+        Self {
             token,
             func: Box::new(func),
             args,
