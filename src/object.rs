@@ -13,6 +13,8 @@ pub enum Object {
     Str(String),
     /// クロージャー
     Closure(ClosureValue),
+    /// 配列
+    Array(Vec<Object>),
     /// リターン値
     Return(Box<Object>),
     /// ビルトイン関数
@@ -30,6 +32,16 @@ impl fmt::Display for Object {
             Self::Null => write!(f, "null"),
             Self::Return(r) => write!(f, "return({})", *r),
             Self::Closure(c) => write!(f, "{}", c.to_string()),
+            Self::Array(elems) => {
+                let mut sep = "";
+                write!(f, "[")?;
+                for e in elems.iter() {
+                    write!(f, "{}", format!("{}{}", sep, e))?;
+                    sep = ",";
+                }
+                write!(f, "]")
+            }
+
             Self::Builtin(s) => {
                 write!(f, "builtin({})", s)
             }

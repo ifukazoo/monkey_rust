@@ -187,6 +187,7 @@ where
         Some(STRING) => parse_str_exp(tokens),
         Some(IDENT) => parse_ident_exp(tokens),
         Some(LPAREN) => parse_group_exp(tokens),
+        Some(LBRACKET) => parse_array(tokens),
         Some(FUNCTION) => parse_function_exp(tokens),
         Some(ILLEGAL) => return Err(ParseError::IllegalToken(tokens.next().unwrap())),
         Some(_) => return Err(ParseError::UnexpectedToken(tokens.next().unwrap())),
@@ -270,6 +271,26 @@ where
     let exp = parse_exp(tokens, Priority::LOWEST)?;
     expect_next(tokens, RPAREN)?;
     Ok(exp)
+}
+fn parse_array<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Expression, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    let token = expect_next(tokens, LBRACKET)?;
+
+    let mut elements = Vec::new();
+
+    while !is_expected_peek(tokens, RBRACKET) {
+        let exp = parse_exp(tokens, Priority::LOWEST)?;
+        elements.push(exp);
+        if let Some(COMMA) = peek_kind(tokens) {
+            tokens.next().unwrap();
+        } else {
+            break;
+        }
+    }
+    expect_next(tokens, RBRACKET)?;
+    Ok(Array(ArrayLiteral::new(token, elements)))
 }
 
 fn parse_function_exp<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Expression, ParseError>

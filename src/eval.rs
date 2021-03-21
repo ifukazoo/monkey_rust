@@ -114,6 +114,14 @@ fn eval_exp(exp: Expression, env: &RefEnvironment) -> Result<Object, EvalError> 
             Ok(s) => Ok(Object::Str(s)),
             Err(e) => Err(e),
         },
+        Array(l) => {
+            let mut elems = vec![];
+            for e in l.elements.into_iter() {
+                let ev = eval_exp(e, &env)?;
+                elems.push(ev);
+            }
+            Ok(Object::Array(elems))
+        }
         Ident(i) => match env::get_value(&env, &i.symbol()) {
             Some(v) => Ok(v),
             None => Err(EvalError::NameError(i.symbol())),
@@ -640,8 +648,6 @@ mod test {
             println!("{}", obj);
         }
     }
-    // TODO 実行時エラーのテスト.
-    // zero divideとか, 束縛してない,とか
 
     #[test]
     fn test_eval_builtin_ok() {
@@ -714,6 +720,29 @@ mod test {
                     EvalError::IllegalSyntax(_) => {}
                     _ => panic!("expects {} but [{}].", expected, e),
                 },
+            }
+        }
+    }
+
+    #[test]
+    fn test_eval_array_literal() {
+        use lexer;
+        use parser;
+        let tests = vec![(
+            r#"
+            [1,"a", true];
+             "#,
+            Object::Array(vec![
+                Object::Int(1),
+                Object::Str("a".to_string()),
+                Object::Bool(true),
+            ]),
+        )];
+        for (input, expected) in tests.into_iter() {
+            let ast = parser::parse_program(lexer::lex(&input)).unwrap();
+            match eval_program(ast) {
+                Ok(obj) => assert_eq!(expected, obj),
+                _ => panic!(),
             }
         }
     }

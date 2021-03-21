@@ -33,6 +33,8 @@ pub enum Expression {
     Str(StringLiteral),
     /// 変数式
     Ident(Identifier),
+    /// 配列式
+    Array(ArrayLiteral),
     /// 関数式
     Function(FunctionLiteral),
     /// 関数呼び出し式
@@ -241,6 +243,18 @@ impl fmt::Display for FunctionLiteral {
             self.params.len(),
             self.block.len()
         )
+    }
+}
+
+// 配列定義
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArrayLiteral {
+    token: Token,
+    pub elements: Vec<Expression>,
+}
+impl ArrayLiteral {
+    pub fn new(token: Token, elements: Vec<Expression>) -> Self {
+        Self { token, elements }
     }
 }
 
