@@ -701,6 +701,20 @@ mod test {
              "#,
                 Object::Int(8),
             ),
+            (
+                r#"
+            let a = [];
+            len(a);
+             "#,
+                Object::Int(0),
+            ),
+            (
+                r#"
+            let a = [1];
+            len(a);
+             "#,
+                Object::Int(1),
+            ),
         ];
         for (input, expected) in tests.into_iter() {
             let ast = parser::parse_program(lexer::lex(&input)).unwrap();

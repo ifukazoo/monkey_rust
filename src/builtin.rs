@@ -29,6 +29,7 @@ fn len(args: Vec<Object>) -> Result<Object, EvalError> {
 
     match args.first().unwrap() {
         Object::Str(s) => Ok(Object::Int(s.chars().count() as i64)),
+        Object::Array(a) => Ok(Object::Int(a.len() as i64)),
         _ => Err(EvalError::IllegalSyntax(String::from(
             "len() requires Str.",
         ))),
