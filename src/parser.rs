@@ -41,8 +41,10 @@ lazy_static! {
         priority.insert(TokenKind::ASTERISK, Priority::PRODUCT);
         priority.insert(TokenKind::SLASH, Priority::PRODUCT);
 
-        // xxx(
+        // func(
+        // arr[
         priority.insert(TokenKind::LPAREN, Priority::CALL);
+        priority.insert(TokenKind::LBRACKET, Priority::CALL);
 
         priority
     };
@@ -206,6 +208,7 @@ where
         }
         left = match next_kind {
             LPAREN => parse_call_exp(tokens, left)?,
+            LBRACKET => parse_index_exp(tokens, left)?,
             PLUS | MINUS | ASTERISK | SLASH | GT | LT | EQ | NOTEQ => {
                 parse_infix_exp(tokens, left, next_pri)?
             }
@@ -356,6 +359,25 @@ where
 
     // left は identifier or 関数リテラル式
     Ok(Call(CallFunction::new(token, left, args)))
+}
+fn parse_index_exp<Tokens>(
+    tokens: &mut Peekable<Tokens>,
+    arr: Expression,
+) -> Result<Expression, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    // `[`の刈り取り
+    let token = expect_next(tokens, LBRACKET)?;
+
+    // インデックス値の刈り取り
+    let index = parse_exp(tokens, Priority::LOWEST)?;
+
+    // `]`の刈り取り
+    expect_next(tokens, RBRACKET)?;
+
+    // left は identifier or 関数リテラル式
+    Ok(Index(ArrayIndex::new(token, arr, index)))
 }
 
 fn parse_infix_exp<Tokens>(

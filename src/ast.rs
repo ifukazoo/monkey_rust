@@ -35,6 +35,8 @@ pub enum Expression {
     Ident(Identifier),
     /// 配列式
     Array(ArrayLiteral),
+    /// インデックス式
+    Index(ArrayIndex),
     /// 関数式
     Function(FunctionLiteral),
     /// 関数呼び出し式
@@ -255,6 +257,23 @@ pub struct ArrayLiteral {
 impl ArrayLiteral {
     pub fn new(token: Token, elements: Vec<Expression>) -> Self {
         Self { token, elements }
+    }
+}
+
+/// 配列インデックス
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArrayIndex {
+    token: Token,
+    pub arr: Box<Expression>,
+    pub index: Box<Expression>,
+}
+impl ArrayIndex {
+    pub fn new(token: Token, arr: Expression, index: Expression) -> Self {
+        Self {
+            token,
+            arr: Box::new(arr),
+            index: Box::new(index),
+        }
     }
 }
 

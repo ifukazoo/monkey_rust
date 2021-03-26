@@ -24,6 +24,8 @@ pub enum EvalError {
     ZeroDivision(i64),
     /// 不明な変数
     NameError(String),
+    /// 配列範囲外
+    IndexOutOfRange((usize, i64)),
 }
 impl fmt::Display for EvalError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -42,6 +44,9 @@ impl fmt::Display for EvalError {
             Self::IllegalSyntax(cause) => write!(f, "illegal syntax:{}", cause),
             Self::ZeroDivision(diviend) => write!(f, "zero division:{}/0", diviend),
             Self::NameError(s) => write!(f, "undefined name:`{}`", s),
+            Self::IndexOutOfRange((length, index)) => {
+                write!(f, "index out of range [{}] with length {}", index, length)
+            }
         }
     }
 }
@@ -122,6 +127,24 @@ fn eval_exp(exp: Expression, env: &RefEnvironment) -> Result<Object, EvalError> 
             }
             Ok(Object::Array(elems))
         }
+        Index(i) => match eval_exp(*i.arr, &env)? {
+            Object::Array(arr) => match eval_exp(*i.index, &env)? {
+                Object::Int(num) => {
+                    if num < 0 || num as usize > (arr.len() - 1) {
+                        Err(EvalError::IndexOutOfRange((arr.len(), num)))
+                    } else {
+                        let elem = arr.get(num as usize).unwrap();
+                        Ok(elem.clone())
+                    }
+                }
+                _ => Err(EvalError::IllegalSyntax(
+                    "index should be integer".to_string(),
+                )),
+            },
+            _ => Err(EvalError::IllegalSyntax(
+                "index was applied to non-array".to_string(),
+            )),
+        },
         Ident(i) => match env::get_value(&env, &i.symbol()) {
             Some(v) => Ok(v),
             None => Err(EvalError::NameError(i.symbol())),
@@ -725,7 +748,7 @@ mod test {
     }
 
     #[test]
-    fn test_eval_array() {
+    fn test_eval_array_literal() {
         use lexer;
         use parser;
         let tests = vec![
@@ -750,6 +773,56 @@ mod test {
             [[1]];
              "#,
                 Object::Array(vec![Object::Array(vec![Object::Int(1)])]),
+            ),
+            (
+                r#"
+            [2*2, 3+ 3];
+             "#,
+                Object::Array(vec![Object::Int(4), Object::Int(6)]),
+            ),
+        ];
+        for (input, expected) in tests.into_iter() {
+            let ast = parser::parse_program(lexer::lex(&input)).unwrap();
+            match eval_program(ast) {
+                Ok(obj) => assert_eq!(expected, obj),
+                _ => panic!(),
+            }
+        }
+    }
+    #[test]
+    fn test_eval_array_index() {
+        use lexer;
+        use parser;
+        let tests = vec![
+            (
+                r#"
+            let a = [1];
+            a[0];
+             "#,
+                Object::Int(1),
+            ),
+            (
+                r#"
+            let a = [1, "str" ];
+            a[1];
+             "#,
+                Object::Str("str".to_string()),
+            ),
+            (
+                r#"
+            let a = [2];
+            let f = fn(x) { x * 2;};
+            f(a[0]);
+             "#,
+                Object::Int(4),
+            ),
+            (
+                r#"
+            let a = [0,1];
+            let f = fn(x) { x;};
+            a[f(1)];
+             "#,
+                Object::Int(1),
             ),
         ];
         for (input, expected) in tests.into_iter() {
