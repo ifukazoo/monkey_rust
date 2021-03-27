@@ -18,7 +18,7 @@ pub enum Object {
     /// リターン値
     Return(Box<Object>),
     /// ビルトイン関数
-    Builtin(String),
+    Builtin(&'static str),
     /// NULL
     Null,
 }

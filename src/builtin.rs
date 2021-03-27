@@ -6,7 +6,7 @@ const FUNCTION_LEN: &str = "len";
 /// ビルトイン関数の名前を返す
 pub fn get(key: &str) -> Option<Object> {
     match key {
-        FUNCTION_LEN => Some(Object::Builtin(String::from(FUNCTION_LEN))),
+        FUNCTION_LEN => Some(Object::Builtin(FUNCTION_LEN)),
         _ => None,
     }
 }
