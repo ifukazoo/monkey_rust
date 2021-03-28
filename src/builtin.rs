@@ -46,15 +46,17 @@ fn len(args: Vec<Object>) -> Result<Object, EvalError> {
     }
 }
 
-fn array_function_with_one_param(
+fn array_function(
     name: &str,
     args: Vec<Object>,
+    require_num: usize,
     exec: fn(&Vec<Object>) -> Result<Object, EvalError>,
 ) -> Result<Object, EvalError> {
-    if args.len() != 1 {
+    if args.len() != require_num {
         return Err(EvalError::IllegalSyntax(format!(
-            "{} requires 1 arg. but {} args.",
+            "{} requires {} args. but {} args.",
             name,
+            require_num,
             args.len()
         )));
     }
@@ -74,7 +76,7 @@ fn first(args: Vec<Object>) -> Result<Object, EvalError> {
             Ok(a.first().unwrap().clone())
         }
     };
-    array_function_with_one_param("first()", args, f)
+    array_function("first()", args, 1, f)
 }
 fn last(args: Vec<Object>) -> Result<Object, EvalError> {
     let f: fn(&Vec<Object>) -> Result<Object, EvalError> = |a| {
@@ -84,7 +86,7 @@ fn last(args: Vec<Object>) -> Result<Object, EvalError> {
             Ok(a.last().unwrap().clone())
         }
     };
-    array_function_with_one_param("last()", args, f)
+    array_function("last()", args, 1, f)
 }
 
 fn rest(args: Vec<Object>) -> Result<Object, EvalError> {
@@ -98,7 +100,7 @@ fn rest(args: Vec<Object>) -> Result<Object, EvalError> {
             Ok(Object::Array(slice.to_vec()))
         }
     };
-    array_function_with_one_param("rest()", args, f)
+    array_function("rest()", args, 1, f)
 }
 fn push(args: Vec<Object>) -> Result<Object, EvalError> {
     if args.len() != 2 {
