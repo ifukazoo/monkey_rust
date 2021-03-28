@@ -5,6 +5,7 @@ const FUNCTION_LEN: &str = "len";
 const FUNCTION_FIRST: &str = "first";
 const FUNCTION_LAST: &str = "last";
 const FUNCTION_REST: &str = "rest";
+const FUNCTION_PUSH: &str = "push";
 
 /// ビルトイン関数の名前を返す
 pub fn get(key: &str) -> Option<Object> {
@@ -13,17 +14,19 @@ pub fn get(key: &str) -> Option<Object> {
         FUNCTION_FIRST => Some(Object::Builtin(FUNCTION_FIRST)),
         FUNCTION_LAST => Some(Object::Builtin(FUNCTION_LAST)),
         FUNCTION_REST => Some(Object::Builtin(FUNCTION_REST)),
+        FUNCTION_PUSH => Some(Object::Builtin(FUNCTION_PUSH)),
         _ => None,
     }
 }
 
-/// getで返した名前を渡す．名前に応じた処理を施す．
+/// getで返した名前を渡すと名前に応じた処理を実施する．
 pub fn exec(name: &str, args: Vec<Object>) -> Result<Object, EvalError> {
     match name {
         FUNCTION_LEN => len(args),
         FUNCTION_FIRST => first(args),
         FUNCTION_LAST => last(args),
         FUNCTION_REST => rest(args),
+        FUNCTION_PUSH => push(args),
         _ => Err(EvalError::NameError(String::from(name))),
     }
 }
@@ -96,4 +99,21 @@ fn rest(args: Vec<Object>) -> Result<Object, EvalError> {
         }
     };
     array_function_with_one_param("rest()", args, f)
+}
+fn push(args: Vec<Object>) -> Result<Object, EvalError> {
+    if args.len() != 2 {
+        return Err(EvalError::IllegalSyntax(format!(
+            "push requires 2 arg. but {} args.",
+            args.len()
+        )));
+    }
+    match args.get(0).unwrap() {
+        Object::Array(a) => {
+            let mut new = a.to_vec();
+            let addend = args.get(1).unwrap().clone();
+            new.push(addend);
+            Ok(Object::Array(new))
+        }
+        _ => Err(EvalError::IllegalSyntax("push requires Array.".to_string())),
+    }
 }

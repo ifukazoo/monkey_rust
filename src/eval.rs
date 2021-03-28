@@ -736,6 +736,20 @@ mod test {
              "#,
                 Object::Array(vec![Object::Int(2), Object::Int(3)]),
             ),
+            (
+                r#"
+            let a = [1];
+            push(a, 2);
+             "#,
+                Object::Array(vec![Object::Int(1), Object::Int(2)]),
+            ),
+            (
+                r#"
+            let a = [];
+            push(a, 1);
+             "#,
+                Object::Array(vec![Object::Int(1)]),
+            ),
         ];
         for (input, expected) in tests.into_iter() {
             let ast = parser::parse_program(lexer::lex(&input)).unwrap();
