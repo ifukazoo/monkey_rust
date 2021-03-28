@@ -42,66 +42,58 @@ fn len(args: Vec<Object>) -> Result<Object, EvalError> {
         _ => Err(EvalError::IllegalSyntax("len() requires Str.".to_string())),
     }
 }
-fn first(args: Vec<Object>) -> Result<Object, EvalError> {
+
+fn array_function_with_one_param(
+    name: &str,
+    args: Vec<Object>,
+    exec: fn(&Vec<Object>) -> Result<Object, EvalError>,
+) -> Result<Object, EvalError> {
     if args.len() != 1 {
         return Err(EvalError::IllegalSyntax(format!(
-            "first() requires 1 arg. but {} args.",
+            "{} requires 1 arg. but {} args.",
+            name,
             args.len()
         )));
     }
     match args.first().unwrap() {
-        Object::Array(a) => {
-            if a.len() == 0 {
-                Err(EvalError::IndexOutOfRange((0, 0)))
-            } else {
-                Ok(a.first().unwrap().clone())
-            }
-        }
-        _ => Err(EvalError::IllegalSyntax(
-            "first() requires Array.".to_string(),
-        )),
+        Object::Array(a) => exec(a),
+        _ => Err(EvalError::IllegalSyntax(format!(
+            "{} requires Array.",
+            name
+        ))),
     }
+}
+fn first(args: Vec<Object>) -> Result<Object, EvalError> {
+    let f: fn(&Vec<Object>) -> Result<Object, EvalError> = |a| {
+        if a.len() == 0 {
+            Err(EvalError::IndexOutOfRange((0, 0)))
+        } else {
+            Ok(a.first().unwrap().clone())
+        }
+    };
+    array_function_with_one_param("first()", args, f)
 }
 fn last(args: Vec<Object>) -> Result<Object, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::IllegalSyntax(format!(
-            "last() requires 1 arg. but {} args.",
-            args.len()
-        )));
-    }
-    match args.first().unwrap() {
-        Object::Array(a) => {
-            if a.len() == 0 {
-                Err(EvalError::IndexOutOfRange((0, 0)))
-            } else {
-                Ok(a.last().unwrap().clone())
-            }
+    let f: fn(&Vec<Object>) -> Result<Object, EvalError> = |a| {
+        if a.len() == 0 {
+            Err(EvalError::IndexOutOfRange((0, 0)))
+        } else {
+            Ok(a.last().unwrap().clone())
         }
-        _ => Err(EvalError::IllegalSyntax(
-            "first() requires Array.".to_string(),
-        )),
-    }
+    };
+    array_function_with_one_param("last()", args, f)
 }
+
 fn rest(args: Vec<Object>) -> Result<Object, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::IllegalSyntax(format!(
-            "rest() requires 1 arg. but {} args.",
-            args.len()
-        )));
-    }
-    match args.first().unwrap() {
-        Object::Array(a) => {
-            if a.len() == 0 {
-                Err(EvalError::IllegalSyntax(
-                    "rest() applied empty array.".to_string(),
-                ))
-            } else {
-                let slice = &a[1..];
-                Ok(Object::Array(slice.to_vec()))
-            }
+    let f: fn(&Vec<Object>) -> Result<Object, EvalError> = |a| {
+        if a.len() == 0 {
+            Err(EvalError::IllegalSyntax(
+                "rest() applied empty array.".to_string(),
+            ))
+        } else {
+            let slice = &a[1..];
+            Ok(Object::Array(slice.to_vec()))
         }
-        _ => Err(EvalError::IllegalSyntax(
-            "rest() requires Array.".to_string(),
-        )),
-    }
+    };
+    array_function_with_one_param("rest()", args, f)
 }
