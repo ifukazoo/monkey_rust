@@ -46,22 +46,27 @@ fn len(args: Vec<Object>) -> Result<Object, EvalError> {
     }
 }
 
-fn array_function(
+// 配列へのビルトイン関数適用
+fn array_function<Func>(
     name: &str,
-    args: Vec<Object>,
-    require_num: usize,
-    exec: fn(&Vec<Object>) -> Result<Object, EvalError>,
-) -> Result<Object, EvalError> {
-    if args.len() != require_num {
+    args: &Vec<Object>,   // ビルトイン関数に与えられた引数
+    req_param_num: usize, // 必要な引数の数
+    apply: Func,          // 配列に適用する関数
+) -> Result<Object, EvalError>
+where
+    Func: Fn(&Vec<Object>) -> Result<Object, EvalError>,
+{
+    if args.len() != req_param_num {
         return Err(EvalError::IllegalSyntax(format!(
             "{} requires {} args. but {} args.",
             name,
-            require_num,
+            req_param_num,
             args.len()
         )));
     }
+    // ビルトイン関数の第一引数は配列とする．
     match args.first().unwrap() {
-        Object::Array(a) => exec(a),
+        Object::Array(arr) => apply(arr),
         _ => Err(EvalError::IllegalSyntax(format!(
             "{} requires Array.",
             name
@@ -69,53 +74,46 @@ fn array_function(
     }
 }
 fn first(args: Vec<Object>) -> Result<Object, EvalError> {
-    let f: fn(&Vec<Object>) -> Result<Object, EvalError> = |a| {
-        if a.len() == 0 {
+    let req_param_num = 1;
+    array_function("first()", &args, req_param_num, |arr| {
+        if arr.len() == 0 {
             Err(EvalError::IndexOutOfRange((0, 0)))
         } else {
-            Ok(a.first().unwrap().clone())
+            Ok(arr.first().unwrap().clone())
         }
-    };
-    array_function("first()", args, 1, f)
+    })
 }
 fn last(args: Vec<Object>) -> Result<Object, EvalError> {
-    let f: fn(&Vec<Object>) -> Result<Object, EvalError> = |a| {
-        if a.len() == 0 {
+    let req_param_num = 1;
+    array_function("last()", &args, req_param_num, |arr| {
+        if arr.len() == 0 {
             Err(EvalError::IndexOutOfRange((0, 0)))
         } else {
-            Ok(a.last().unwrap().clone())
+            Ok(arr.last().unwrap().clone())
         }
-    };
-    array_function("last()", args, 1, f)
+    })
 }
 
 fn rest(args: Vec<Object>) -> Result<Object, EvalError> {
-    let f: fn(&Vec<Object>) -> Result<Object, EvalError> = |a| {
-        if a.len() == 0 {
+    let req_param_num = 1;
+    array_function("rest()", &args, req_param_num, |arr| {
+        if arr.len() == 0 {
             Err(EvalError::IllegalSyntax(
                 "rest() applied empty array.".to_string(),
             ))
         } else {
-            let slice = &a[1..];
+            let slice = &arr[1..];
             Ok(Object::Array(slice.to_vec()))
         }
-    };
-    array_function("rest()", args, 1, f)
+    })
 }
+
 fn push(args: Vec<Object>) -> Result<Object, EvalError> {
-    if args.len() != 2 {
-        return Err(EvalError::IllegalSyntax(format!(
-            "push requires 2 arg. but {} args.",
-            args.len()
-        )));
-    }
-    match args.get(0).unwrap() {
-        Object::Array(a) => {
-            let mut new = a.to_vec();
-            let addend = args.get(1).unwrap().clone();
-            new.push(addend);
-            Ok(Object::Array(new))
-        }
-        _ => Err(EvalError::IllegalSyntax("push requires Array.".to_string())),
-    }
+    let req_param_num = 2;
+    array_function("push()", &args, req_param_num, |arr| {
+        let mut new_arr = arr.clone();
+        let addend = args.get(1).unwrap().clone();
+        new_arr.push(addend);
+        Ok(Object::Array(new_arr))
+    })
 }
