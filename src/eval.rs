@@ -715,6 +715,27 @@ mod test {
              "#,
                 Object::Int(1),
             ),
+            (
+                r#"
+            let a = [3,2,1];
+            first(a);
+             "#,
+                Object::Int(3),
+            ),
+            (
+                r#"
+            let a = [2,3];
+            last(a);
+             "#,
+                Object::Int(3),
+            ),
+            (
+                r#"
+            let a = [1,2,3];
+            rest(a);
+             "#,
+                Object::Array(vec![Object::Int(2), Object::Int(3)]),
+            ),
         ];
         for (input, expected) in tests.into_iter() {
             let ast = parser::parse_program(lexer::lex(&input)).unwrap();
