@@ -186,14 +186,14 @@ fn eval_calling_function(call: CallFunction, env: &RefEnvironment) -> Result<Obj
         Object::Closure(closure) => eval_closure(closure, call.args, &env),
         Object::Return(r) => match *r {
             Object::Closure(closure) => eval_closure(closure, call.args, &env),
-            _ => Err(EvalError::IllegalSyntax(String::from(
-                "prev exp is not a function",
-            ))),
+            _ => Err(EvalError::IllegalSyntax(
+                "prev exp is not a function".to_string(),
+            )),
         },
         Object::Builtin(s) => eval_builtin(&s, call.args, &env),
-        _ => Err(EvalError::IllegalSyntax(String::from(
-            "prev exp is not a function",
-        ))),
+        _ => Err(EvalError::IllegalSyntax(
+            "prev exp is not a function".to_string(),
+        )),
     }
 }
 
