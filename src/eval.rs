@@ -756,43 +756,6 @@ mod test {
              "#,
                 Object::Array(vec![Object::Int(1)]),
             ),
-            (
-                r#"
-            let map = fn(arr, f) {
-                let iter = fn(arr, acc) {
-                    if (len(arr) == 0) {
-                        acc;
-                    } else {
-                        iter(rest(arr), push(acc, f(first(arr))));
-                    }
-                };
-                iter(arr, []);
-            };
-            let a = [2,3,4];
-            let double = fn(x) { x * 2; };
-            map(a, double);
-             "#,
-                Object::Array(vec![Object::Int(4), Object::Int(6), Object::Int(8)]),
-            ),
-            (
-                r#"
-            let reduce = fn(arr, initial, f) {
-                let iter = fn(arr, result) {
-                    if (len(arr) == 0) {
-                        result;
-                    } else {
-                        iter(rest(arr), f(result, first(arr)));
-                    }
-                };
-                iter(arr, initial);
-            };
-            let sum = fn(arr) {
-                reduce(arr, 0, fn(initial, el) { initial + el; });
-            };
-            sum([1,2,3,4,5,6,7,8,9,10]);
-             "#,
-                Object::Int(55),
-            ),
         ];
         for (input, expected) in tests.into_iter() {
             let ast = parser::parse_program(lexer::lex(&input)).unwrap();
@@ -915,6 +878,57 @@ mod test {
             a[f(1)];
              "#,
                 Object::Int(1),
+            ),
+        ];
+        for (input, expected) in tests.into_iter() {
+            let ast = parser::parse_program(lexer::lex(&input)).unwrap();
+            match eval_program(ast) {
+                Ok(obj) => assert_eq!(expected, obj),
+                _ => panic!(),
+            }
+        }
+    }
+    #[test]
+    fn test_map_reduce() {
+        use lexer;
+        use parser;
+        let tests = vec![
+            (
+                r#"
+            let map = fn(arr, f) {
+                let iter = fn(arr, acc) {
+                    if (len(arr) == 0) {
+                        acc;
+                    } else {
+                        iter(rest(arr), push(acc, f(first(arr))));
+                    }
+                };
+                iter(arr, []);
+            };
+            let a = [2,3,4];
+            let double = fn(x) { x * 2; };
+            map(a, double);
+             "#,
+                Object::Array(vec![Object::Int(4), Object::Int(6), Object::Int(8)]),
+            ),
+            (
+                r#"
+            let reduce = fn(arr, initial, f) {
+                let iter = fn(arr, result) {
+                    if (len(arr) == 0) {
+                        result;
+                    } else {
+                        iter(rest(arr), f(result, first(arr)));
+                    }
+                };
+                iter(arr, initial);
+            };
+            let sum = fn(arr) {
+                reduce(arr, 0, fn(initial, el) { initial + el; });
+            };
+            sum([1,2,3,4,5,6,7,8,9,10]);
+             "#,
+                Object::Int(55),
             ),
         ];
         for (input, expected) in tests.into_iter() {
