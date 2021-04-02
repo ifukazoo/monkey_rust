@@ -49,7 +49,7 @@ fn len(args: Vec<Object>) -> Result<Object, EvalError> {
 // 配列へのビルトイン関数適用
 fn array_function<Func>(
     name: &str,
-    args: &Vec<Object>,   // ビルトイン関数に与えられた引数
+    args: &[Object],      // ビルトイン関数に与えられた引数
     req_param_num: usize, // 必要な引数の数
     apply: Func,          // 配列に適用する関数
 ) -> Result<Object, EvalError>
