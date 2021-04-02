@@ -76,7 +76,7 @@ where
 fn first(args: Vec<Object>) -> Result<Object, EvalError> {
     let req_param_num = 1;
     array_function("first()", &args, req_param_num, |arr| {
-        if arr.len() == 0 {
+        if arr.is_empty() {
             Err(EvalError::IndexOutOfRange((0, 0)))
         } else {
             Ok(arr.first().unwrap().clone())
@@ -86,7 +86,7 @@ fn first(args: Vec<Object>) -> Result<Object, EvalError> {
 fn last(args: Vec<Object>) -> Result<Object, EvalError> {
     let req_param_num = 1;
     array_function("last()", &args, req_param_num, |arr| {
-        if arr.len() == 0 {
+        if arr.is_empty() {
             Err(EvalError::IndexOutOfRange((0, 0)))
         } else {
             Ok(arr.last().unwrap().clone())
@@ -97,7 +97,7 @@ fn last(args: Vec<Object>) -> Result<Object, EvalError> {
 fn rest(args: Vec<Object>) -> Result<Object, EvalError> {
     let req_param_num = 1;
     array_function("rest()", &args, req_param_num, |arr| {
-        if arr.len() == 0 {
+        if arr.is_empty() {
             Err(EvalError::IllegalSyntax(
                 "rest() applied empty array.".to_string(),
             ))
