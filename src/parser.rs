@@ -43,6 +43,7 @@ lazy_static! {
 
         // func(
         // arr[
+        // hash[
         priority.insert(TokenKind::LPAREN, Priority::CALL);
         priority.insert(TokenKind::LBRACKET, Priority::CALL);
 
@@ -190,6 +191,7 @@ where
         Some(IDENT) => parse_ident_exp(tokens),
         Some(LPAREN) => parse_group_exp(tokens),
         Some(LBRACKET) => parse_array(tokens),
+        Some(LBRACE) => parse_hash(tokens),
         Some(FUNCTION) => parse_function_exp(tokens),
         Some(ILLEGAL) => return Err(ParseError::IllegalToken(tokens.next().unwrap())),
         Some(_) => return Err(ParseError::UnexpectedToken(tokens.next().unwrap())),
@@ -294,6 +296,29 @@ where
     }
     expect_next(tokens, RBRACKET)?;
     Ok(Array(ArrayLiteral::new(token, elements)))
+}
+
+fn parse_hash<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Expression, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    let token = expect_next(tokens, LBRACE)?;
+
+    let mut elements = Vec::new();
+
+    while !is_expected_peek(tokens, RBRACKET) {
+        let key = parse_exp(tokens, Priority::LOWEST)?;
+        expect_next(tokens, COLON)?;
+        let val = parse_exp(tokens, Priority::LOWEST)?;
+        elements.push((key, val));
+        if let Some(COMMA) = peek_kind(tokens) {
+            tokens.next().unwrap();
+        } else {
+            break;
+        }
+    }
+    expect_next(tokens, RBRACE)?;
+    Ok(Hash(HashLiteral::new(token, elements)))
 }
 
 fn parse_function_exp<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Expression, ParseError>
@@ -578,6 +603,15 @@ mod test {
         let result = lexer::lex(&input);
         parse_let_stmt(&mut result.into_iter().peekable()).unwrap();
         parse_program(lexer::lex(&input)).unwrap();
+    }
+
+    #[test]
+    fn test_parse_hash_literal() {
+        let input = String::from("let x = {1:true};");
+        let result = lexer::lex(&input);
+        parse_let_stmt(&mut result.into_iter().peekable()).unwrap();
+        let ast = parse_program(lexer::lex(&input)).unwrap();
+        println!("{:?}", ast);
     }
 
     #[test]

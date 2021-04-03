@@ -57,6 +57,7 @@ pub fn lex(input: &str) -> LexResult {
                 '/' => lex_a_char!(c, SLASH),
                 '<' => lex_a_char!(c, LT),
                 '>' => lex_a_char!(c, GT),
+                ':' => lex_a_char!(c, COLON),
                 ';' => lex_a_char!(c, SEMICOLON),
                 ',' => lex_a_char!(c, COMMA),
                 '{' => lex_a_char!(c, LBRACE),

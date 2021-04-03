@@ -120,6 +120,7 @@ fn eval_exp(exp: Expression, env: &RefEnvironment) -> Result<Object, EvalError> 
             Err(e) => Err(e),
         },
         Array(l) => eval_array_literal(l, env),
+        Hash(_) => unimplemented!(),
         Index(i) => eval_index(i, env),
         Ident(i) => match env::get_value(&env, &i.symbol()) {
             Some(v) => Ok(v),

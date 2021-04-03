@@ -37,6 +37,8 @@ pub enum Expression {
     Array(ArrayLiteral),
     /// インデックス式
     Index(ArrayIndex),
+    /// ハッシュ式
+    Hash(HashLiteral),
     /// 関数式
     Function(FunctionLiteral),
     /// 関数呼び出し式
@@ -274,6 +276,18 @@ impl ArrayIndex {
             arr: Box::new(arr),
             index: Box::new(index),
         }
+    }
+}
+
+// ハッシュ定義
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HashLiteral {
+    token: Token,
+    pub keyvals: Vec<(Expression, Expression)>,
+}
+impl HashLiteral {
+    pub fn new(token: Token, keyvals: Vec<(Expression, Expression)>) -> Self {
+        Self { token, keyvals }
     }
 }
 
