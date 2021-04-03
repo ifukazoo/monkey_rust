@@ -36,7 +36,7 @@ impl fmt::Display for Object {
                 let mut sep = "";
                 write!(f, "[")?;
                 for e in elems.iter() {
-                    write!(f, "{}", format!("{}{}", sep, e))?;
+                    write!(f, "{}{}", sep, e)?;
                     sep = ",";
                 }
                 write!(f, "]")
