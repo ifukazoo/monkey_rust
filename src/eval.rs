@@ -119,32 +119,8 @@ fn eval_exp(exp: Expression, env: &RefEnvironment) -> Result<Object, EvalError> 
             Ok(s) => Ok(Object::Str(s)),
             Err(e) => Err(e),
         },
-        Array(l) => {
-            let mut elems = vec![];
-            for e in l.elements.into_iter() {
-                let ev = eval_exp(e, &env)?;
-                elems.push(ev);
-            }
-            Ok(Object::Array(elems))
-        }
-        Index(i) => match eval_exp(*i.arr, &env)? {
-            Object::Array(arr) => match eval_exp(*i.index, &env)? {
-                Object::Int(num) => {
-                    if num < 0 || num as usize > (arr.len() - 1) {
-                        Err(EvalError::IndexOutOfRange((arr.len(), num)))
-                    } else {
-                        let elem = arr.get(num as usize).unwrap();
-                        Ok(elem.clone())
-                    }
-                }
-                _ => Err(EvalError::IllegalSyntax(
-                    "index should be integer".to_string(),
-                )),
-            },
-            _ => Err(EvalError::IllegalSyntax(
-                "index was applied to non-array".to_string(),
-            )),
-        },
+        Array(l) => eval_array_literal(l, env),
+        Index(i) => eval_index(i, env),
         Ident(i) => match env::get_value(&env, &i.symbol()) {
             Some(v) => Ok(v),
             None => Err(EvalError::NameError(i.symbol())),
@@ -159,6 +135,36 @@ fn eval_exp(exp: Expression, env: &RefEnvironment) -> Result<Object, EvalError> 
             env.clone(),
         ))),
         Call(c) => eval_calling_function(c, env),
+    }
+}
+
+fn eval_array_literal(l: ArrayLiteral, env: &RefEnvironment) -> Result<Object, EvalError> {
+    let mut elems = vec![];
+    for e in l.elements.into_iter() {
+        let ev = eval_exp(e, &env)?;
+        elems.push(ev);
+    }
+    Ok(Object::Array(elems))
+}
+
+fn eval_index(i: ArrayIndex, env: &RefEnvironment) -> Result<Object, EvalError> {
+    match eval_exp(*i.arr, &env)? {
+        Object::Array(arr) => match eval_exp(*i.index, &env)? {
+            Object::Int(num) => {
+                if num < 0 || num as usize > (arr.len() - 1) {
+                    Err(EvalError::IndexOutOfRange((arr.len(), num)))
+                } else {
+                    let elem = arr.get(num as usize).unwrap();
+                    Ok(elem.clone())
+                }
+            }
+            _ => Err(EvalError::IllegalSyntax(
+                "index should be integer".to_string(),
+            )),
+        },
+        _ => Err(EvalError::IllegalSyntax(
+            "index was applied to non-array".to_string(),
+        )),
     }
 }
 
