@@ -4,6 +4,7 @@ use crate::ast::*;
 use crate::builtin;
 use crate::env;
 use crate::env::RefEnvironment;
+use crate::object;
 use crate::object::ClosureValue;
 use crate::object::Object;
 use std::collections::HashMap;
@@ -120,7 +121,7 @@ fn eval_exp(exp: Expression, env: &RefEnvironment) -> Result<Object, EvalError> 
             Err(e) => Err(e),
         },
         Array(l) => eval_array_literal(l, env),
-        Hash(_) => unimplemented!(),
+        Hash(h) => eval_hash_literal(h, env),
         Index(i) => eval_index(i, env),
         Ident(i) => match env::get_value(&env, &i.symbol()) {
             Some(v) => Ok(v),
@@ -146,6 +147,24 @@ fn eval_array_literal(l: ArrayLiteral, env: &RefEnvironment) -> Result<Object, E
         elems.push(ev);
     }
     Ok(Object::Array(elems))
+}
+fn eval_hash_literal(h: HashLiteral, env: &RefEnvironment) -> Result<Object, EvalError> {
+    let mut hash = HashMap::new();
+    for (ke, ve) in h.keyvals.into_iter() {
+        let key = match eval_exp(ke, env)? {
+            Object::Int(i) => object::HashKey::Int(i),
+            Object::Bool(b) => object::HashKey::Bool(b),
+            Object::Str(s) => object::HashKey::Str(s),
+            _ => {
+                return Err(EvalError::IllegalSyntax(
+                    "hash key requires int or bool or string".to_string(),
+                ))
+            }
+        };
+        let val = eval_exp(ve, env)?;
+        hash.insert(key, val);
+    }
+    Ok(Object::Hash(hash))
 }
 
 fn eval_index(i: ArrayIndex, env: &RefEnvironment) -> Result<Object, EvalError> {
@@ -930,6 +949,48 @@ mod test {
             sum([1,2,3,4,5,6,7,8,9,10]);
              "#,
                 Object::Int(55),
+            ),
+        ];
+        for (input, expected) in tests.into_iter() {
+            let ast = parser::parse_program(lexer::lex(&input)).unwrap();
+            match eval_program(ast) {
+                Ok(obj) => assert_eq!(expected, obj),
+                _ => panic!(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_eval_hash_literal() {
+        use lexer;
+        use parser;
+        let tests = vec![
+            (
+                r#"
+            let h = {"name":"figaro"};
+            h;
+             "#,
+                Object::Hash({
+                    let mut h = HashMap::new();
+                    h.insert(
+                        HashKey::Str("name".to_string()),
+                        Object::Str("figaro".to_string()),
+                    );
+                    h
+                }),
+            ),
+            (
+                r#"
+            let h = {1:"oh",3:"nagashima", 55:"matsui"};
+            h;
+             "#,
+                Object::Hash({
+                    let mut h = HashMap::new();
+                    h.insert(HashKey::Int(1), Object::Str("oh".to_string()));
+                    h.insert(HashKey::Int(3), Object::Str("nagashima".to_string()));
+                    h.insert(HashKey::Int(55), Object::Str("matsui".to_string()));
+                    h
+                }),
             ),
         ];
         for (input, expected) in tests.into_iter() {

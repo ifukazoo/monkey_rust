@@ -1,6 +1,44 @@
 use crate::ast::*;
 use crate::env::*;
+use std::collections::HashMap;
 use std::fmt;
+
+/// ハッシュのキーとして許容する型
+#[derive(Debug, Clone, Eq, Hash)]
+pub enum HashKey {
+    Int(i64),
+    Bool(bool),
+    Str(String),
+}
+impl fmt::Display for HashKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            HashKey::Int(i) => write!(f, "{}", i),
+            HashKey::Bool(b) => write!(f, "{}", b),
+            HashKey::Str(s) => write!(f, "\"{}\"", s),
+        }
+    }
+}
+
+impl PartialEq for HashKey {
+    fn eq(&self, other: &Self) -> bool {
+        use HashKey::*;
+        match self {
+            Int(l) => match other {
+                Int(r) => l == r,
+                _ => false,
+            },
+            Bool(l) => match other {
+                Bool(r) => l == r,
+                _ => false,
+            },
+            Str(l) => match other {
+                Str(r) => l == r,
+                _ => false,
+            },
+        }
+    }
+}
 
 /// オブジェクト (monkey言語interpreterでの値)
 #[derive(Debug, Clone, PartialEq)]
@@ -15,6 +53,8 @@ pub enum Object {
     Closure(ClosureValue),
     /// 配列
     Array(Vec<Object>),
+    /// ハッシュ
+    Hash(HashMap<HashKey, Object>),
     /// リターン値
     Return(Box<Object>),
     /// ビルトイン関数
@@ -28,7 +68,7 @@ impl fmt::Display for Object {
         match self {
             Self::Int(i) => write!(f, "{}", i),
             Self::Bool(b) => write!(f, "{}", b),
-            Self::Str(s) => write!(f, "{}", s),
+            Self::Str(s) => write!(f, "\"{}\"", s),
             Self::Null => write!(f, "null"),
             Self::Return(r) => write!(f, "return({})", *r),
             Self::Closure(c) => write!(f, "{}", c.to_string()),
@@ -41,7 +81,15 @@ impl fmt::Display for Object {
                 }
                 write!(f, "]")
             }
-
+            Self::Hash(hash) => {
+                let mut sep = "";
+                write!(f, "{{")?;
+                for (k, v) in hash.iter() {
+                    write!(f, "{}{}:{}", sep, k, v)?;
+                    sep = ",";
+                }
+                write!(f, "}}")
+            }
             Self::Builtin(s) => {
                 write!(f, "builtin({})", s)
             }
