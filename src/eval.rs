@@ -61,7 +61,6 @@ pub fn eval_program(program: Program) -> Result<Object, EvalError> {
 // 文の評価
 fn eval_statement(stmt: Statement, env: &RefEnvironment) -> Result<Object, EvalError> {
     match stmt {
-        Block(block) => eval_statements(block.statements, env),
         Let(letstmt) => eval_letstatement(letstmt, env),
         Return(exp) => {
             let val = eval_exp(exp, env)?;
@@ -412,11 +411,7 @@ mod test {
 
     #[test]
     fn test_eval_null() {
-        let tests = vec![
-            (";", Object::Null),
-            (";;", Object::Null),
-            ("{;;}", Object::Null),
-        ];
+        let tests = vec![(";", Object::Null), (";;", Object::Null)];
         for (input, expected) in tests {
             let tokens = lexer::lex(&input);
             let ast = parser::parse_program(tokens).unwrap();
@@ -570,17 +565,6 @@ mod test {
             ("let a=5; let b=a; let c=a+b+5; c;", Object::Int(15)),
             ("let f = fn(x) { x * x; }; f(2);", Object::Int(4)),
         ];
-        for (input, expected) in tests {
-            let tokens = lexer::lex(&input);
-            let ast = parser::parse_program(tokens).unwrap();
-            let obj = eval_program(ast).unwrap();
-            assert_eq!(expected, obj);
-        }
-    }
-
-    #[test]
-    fn test_eval_block() {
-        let tests = vec![("{1;}", Object::Int(1)), ("{1;2;}", Object::Int(2))];
         for (input, expected) in tests {
             let tokens = lexer::lex(&input);
             let ast = parser::parse_program(tokens).unwrap();

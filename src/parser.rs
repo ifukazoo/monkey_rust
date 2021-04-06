@@ -96,7 +96,6 @@ where
         Some(LET) => parse_let_stmt(tokens),
         Some(RETURN) => parse_return_stmt(tokens),
         Some(IF) => parse_if_stmt(tokens),
-        Some(LBRACE) => parse_block_stmt(tokens),
         Some(SEMICOLON) => {
             tokens.next().unwrap();
             Ok(Empty)
@@ -165,14 +164,6 @@ where
             None,
         )))
     }
-}
-
-fn parse_block_stmt<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Statement, ParseError>
-where
-    Tokens: Iterator<Item = Token>,
-{
-    let block = parse_block(tokens)?;
-    Ok(Block(block))
 }
 
 fn parse_exp<Tokens>(
@@ -626,13 +617,6 @@ mod test {
     #[test]
     fn test_parse_if() {
         let input = String::from("if (true) { 1; } else { 2; }");
-        let result = lexer::lex(&input);
-        parse_program(result).unwrap();
-    }
-
-    #[test]
-    fn test_parse_blockstmt() {
-        let input = String::from("{1;}");
         let result = lexer::lex(&input);
         parse_program(result).unwrap();
     }

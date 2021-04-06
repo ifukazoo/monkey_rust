@@ -18,8 +18,6 @@ pub enum Statement {
     Return(Expression),
     /// if文
     If(IfStatement),
-    /// Block文
-    Block(BlockStatement),
 }
 
 /// 式
