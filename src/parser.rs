@@ -153,16 +153,11 @@ where
         Ok(If(IfStatement::new(
             iftoken,
             cond,
-            cons_block.statements,
-            Some(alt_block.statements),
+            cons_block,
+            Some(alt_block),
         )))
     } else {
-        Ok(If(IfStatement::new(
-            iftoken,
-            cond,
-            cons_block.statements,
-            None,
-        )))
+        Ok(If(IfStatement::new(iftoken, cond, cons_block, None)))
     }
 }
 
@@ -330,9 +325,7 @@ where
     let block = parse_block(tokens)?;
 
     Ok(Expression::Function(FunctionLiteral::new(
-        token,
-        params,
-        block.statements,
+        token, params, block,
     )))
 }
 
@@ -409,12 +402,12 @@ where
     Ok(Infix(InfixExpression::new(operator, left, right)))
 }
 
-fn parse_block<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<BlockStatement, ParseError>
+fn parse_block<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Vec<Statement>, ParseError>
 where
     Tokens: Iterator<Item = Token>,
 {
     // `{`の刈り取り
-    let token = expect_next(tokens, LBRACE)?;
+    expect_next(tokens, LBRACE)?;
 
     let mut statements = Vec::new();
 
@@ -426,7 +419,7 @@ where
     // `}`を刈り取る
     expect_next(tokens, RBRACE)?;
 
-    Ok(BlockStatement::new(token, statements))
+    Ok(statements)
 }
 
 fn parse_args<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Vec<Expression>, ParseError>

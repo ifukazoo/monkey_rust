@@ -102,18 +102,6 @@ impl fmt::Display for UnOp {
     }
 }
 
-/// 複文
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BlockStatement {
-    token: Token,
-    pub statements: Vec<Statement>,
-}
-impl BlockStatement {
-    pub fn new(token: Token, statements: Vec<Statement>) -> Self {
-        Self { token, statements }
-    }
-}
-
 /// if文
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IfStatement {
