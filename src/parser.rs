@@ -96,7 +96,6 @@ where
         Some(LET) => parse_let_stmt(tokens),
         Some(RETURN) => parse_return_stmt(tokens),
         Some(IF) => parse_if_stmt(tokens),
-        Some(LBRACE) => parse_block_stmt(tokens),
         Some(SEMICOLON) => {
             tokens.next().unwrap();
             Ok(Empty)
@@ -154,25 +153,12 @@ where
         Ok(If(IfStatement::new(
             iftoken,
             cond,
-            cons_block.statements,
-            Some(alt_block.statements),
+            cons_block,
+            Some(alt_block),
         )))
     } else {
-        Ok(If(IfStatement::new(
-            iftoken,
-            cond,
-            cons_block.statements,
-            None,
-        )))
+        Ok(If(IfStatement::new(iftoken, cond, cons_block, None)))
     }
-}
-
-fn parse_block_stmt<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Statement, ParseError>
-where
-    Tokens: Iterator<Item = Token>,
-{
-    let block = parse_block(tokens)?;
-    Ok(Block(block))
 }
 
 fn parse_exp<Tokens>(
@@ -339,9 +325,7 @@ where
     let block = parse_block(tokens)?;
 
     Ok(Expression::Function(FunctionLiteral::new(
-        token,
-        params,
-        block.statements,
+        token, params, block,
     )))
 }
 
@@ -418,12 +402,12 @@ where
     Ok(Infix(InfixExpression::new(operator, left, right)))
 }
 
-fn parse_block<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<BlockStatement, ParseError>
+fn parse_block<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Vec<Statement>, ParseError>
 where
     Tokens: Iterator<Item = Token>,
 {
     // `{`の刈り取り
-    let token = expect_next(tokens, LBRACE)?;
+    expect_next(tokens, LBRACE)?;
 
     let mut statements = Vec::new();
 
@@ -435,7 +419,7 @@ where
     // `}`を刈り取る
     expect_next(tokens, RBRACE)?;
 
-    Ok(BlockStatement::new(token, statements))
+    Ok(statements)
 }
 
 fn parse_args<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Vec<Expression>, ParseError>
@@ -626,13 +610,6 @@ mod test {
     #[test]
     fn test_parse_if() {
         let input = String::from("if (true) { 1; } else { 2; }");
-        let result = lexer::lex(&input);
-        parse_program(result).unwrap();
-    }
-
-    #[test]
-    fn test_parse_blockstmt() {
-        let input = String::from("{1;}");
         let result = lexer::lex(&input);
         parse_program(result).unwrap();
     }

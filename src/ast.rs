@@ -18,8 +18,6 @@ pub enum Statement {
     Return(Expression),
     /// if文
     If(IfStatement),
-    /// Block文
-    Block(BlockStatement),
 }
 
 /// 式
@@ -101,18 +99,6 @@ impl fmt::Display for UnOp {
             Self::Negative => write!(f, "-"),
             Self::Not => write!(f, "!"),
         }
-    }
-}
-
-/// 複文
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BlockStatement {
-    token: Token,
-    pub statements: Vec<Statement>,
-}
-impl BlockStatement {
-    pub fn new(token: Token, statements: Vec<Statement>) -> Self {
-        Self { token, statements }
     }
 }
 
