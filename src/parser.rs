@@ -386,7 +386,7 @@ where
     expect_next(tokens, RBRACKET)?;
 
     // left は identifier or 関数リテラル式
-    Ok(Index(ArrayIndex::new(token, arr, index)))
+    Ok(Index(IndexAccess::new(token, arr, index)))
 }
 
 fn parse_infix_exp<Tokens>(

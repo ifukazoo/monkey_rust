@@ -166,7 +166,7 @@ fn eval_hash_literal(h: HashLiteral, env: &RefEnvironment) -> Result<Object, Eva
     Ok(Object::Hash(hash))
 }
 
-fn eval_index(i: ArrayIndex, env: &RefEnvironment) -> Result<Object, EvalError> {
+fn eval_index(i: IndexAccess, env: &RefEnvironment) -> Result<Object, EvalError> {
     match eval_exp(*i.arr, &env)? {
         Object::Array(arr) => match eval_exp(*i.index, &env)? {
             Object::Int(num) => {

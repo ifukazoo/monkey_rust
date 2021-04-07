@@ -34,7 +34,7 @@ pub enum Expression {
     /// 配列式
     Array(ArrayLiteral),
     /// インデックス式
-    Index(ArrayIndex),
+    Index(IndexAccess),
     /// ハッシュ式
     Hash(HashLiteral),
     /// 関数式
@@ -248,14 +248,14 @@ impl ArrayLiteral {
     }
 }
 
-/// 配列インデックス
+/// 配列/ハッシュインデックス
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ArrayIndex {
+pub struct IndexAccess {
     token: Token,
     pub arr: Box<Expression>,
     pub index: Box<Expression>,
 }
-impl ArrayIndex {
+impl IndexAccess {
     pub fn new(token: Token, arr: Expression, index: Expression) -> Self {
         Self {
             token,
