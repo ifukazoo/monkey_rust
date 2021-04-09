@@ -6,6 +6,7 @@ const FUNCTION_FIRST: &str = "first";
 const FUNCTION_LAST: &str = "last";
 const FUNCTION_REST: &str = "rest";
 const FUNCTION_PUSH: &str = "push";
+const FUNCTION_PUTS: &str = "puts";
 
 /// ビルトイン関数の名前を返す
 pub fn get(key: &str) -> Option<Object> {
@@ -15,6 +16,7 @@ pub fn get(key: &str) -> Option<Object> {
         FUNCTION_LAST => Some(Object::Builtin(FUNCTION_LAST)),
         FUNCTION_REST => Some(Object::Builtin(FUNCTION_REST)),
         FUNCTION_PUSH => Some(Object::Builtin(FUNCTION_PUSH)),
+        FUNCTION_PUTS => Some(Object::Builtin(FUNCTION_PUTS)),
         _ => None,
     }
 }
@@ -27,6 +29,7 @@ pub fn exec(name: &str, args: Vec<Object>) -> Result<Object, EvalError> {
         FUNCTION_LAST => last(args),
         FUNCTION_REST => rest(args),
         FUNCTION_PUSH => push(args),
+        FUNCTION_PUTS => puts(args),
         _ => Err(EvalError::NameError(String::from(name))),
     }
 }
@@ -116,4 +119,11 @@ fn push(args: Vec<Object>) -> Result<Object, EvalError> {
         new_arr.push(addend);
         Ok(Object::Array(new_arr))
     })
+}
+
+fn puts(args: Vec<Object>) -> Result<Object, EvalError> {
+    for o in args.iter() {
+        println!("{}", o);
+    }
+    Ok(Object::Null)
 }

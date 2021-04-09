@@ -789,6 +789,13 @@ mod test {
              "#,
                 Object::Array(vec![Object::Int(1)]),
             ),
+            (
+                r#"
+            let a = "Hello, world!";
+            puts(a);
+             "#,
+                Object::Null,
+            ),
         ];
         for (input, expected) in tests.into_iter() {
             let ast = parser::parse_program(lexer::lex(&input)).unwrap();
