@@ -6,6 +6,7 @@ use crate::env;
 use crate::env::RefEnvironment;
 use crate::object;
 use crate::object::ClosureValue;
+use crate::object::HashKey;
 use crate::object::Object;
 use std::collections::HashMap;
 use std::fmt;
@@ -168,22 +169,50 @@ fn eval_hash_literal(h: HashLiteral, env: &RefEnvironment) -> Result<Object, Eva
 
 fn eval_index(i: IndexAccess, env: &RefEnvironment) -> Result<Object, EvalError> {
     match eval_exp(*i.arr, &env)? {
-        Object::Array(arr) => match eval_exp(*i.index, &env)? {
-            Object::Int(num) => {
-                if num < 0 || num as usize > (arr.len() - 1) {
-                    Err(EvalError::IndexOutOfRange((arr.len(), num)))
-                } else {
-                    let elem = arr.get(num as usize).unwrap();
-                    Ok(elem.clone())
-                }
-            }
-            _ => Err(EvalError::IllegalSyntax(
-                "index should be integer".to_string(),
-            )),
-        },
+        Object::Array(arr) => eval_index_array(*i.index, arr, &env),
+        Object::Hash(hash) => eval_index_hash(*i.index, hash, &env),
         _ => Err(EvalError::IllegalSyntax(
-            "index was applied to non-array".to_string(),
+            "index was applied to non-array or non-hash".to_string(),
         )),
+    }
+}
+fn eval_index_array(
+    i: Expression,
+    a: Vec<Object>,
+    env: &RefEnvironment,
+) -> Result<Object, EvalError> {
+    match eval_exp(i, &env)? {
+        Object::Int(num) => {
+            if num < 0 || num as usize > (a.len() - 1) {
+                Err(EvalError::IndexOutOfRange((a.len(), num)))
+            } else {
+                let elem = a.get(num as usize).unwrap();
+                Ok(elem.clone())
+            }
+        }
+        _ => Err(EvalError::IllegalSyntax(
+            "index should be integer".to_string(),
+        )),
+    }
+}
+fn eval_index_hash(
+    i: Expression,
+    h: HashMap<HashKey, Object>,
+    env: &RefEnvironment,
+) -> Result<Object, EvalError> {
+    let key = match eval_exp(i, &env)? {
+        Object::Int(key) => HashKey::Int(key),
+        Object::Str(key) => HashKey::Str(key),
+        Object::Bool(key) => HashKey::Bool(key),
+        _ => {
+            return Err(EvalError::IllegalSyntax(
+                "hash should be integer or string or bool".to_string(),
+            ))
+        }
+    };
+    match h.get(&key) {
+        Some(value) => Ok(value.clone()),
+        None => Err(EvalError::NameError(format!("{} is not a key.", key))),
     }
 }
 
@@ -951,6 +980,13 @@ mod test {
         let tests = vec![
             (
                 r#"
+            let h = {};
+            h;
+             "#,
+                Object::Hash({ HashMap::new() }),
+            ),
+            (
+                r#"
             let h = {"name":"figaro"};
             h;
              "#,
@@ -982,6 +1018,90 @@ mod test {
             match eval_program(ast) {
                 Ok(obj) => assert_eq!(expected, obj),
                 _ => panic!(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_eval_hash_index() {
+        use lexer;
+        use parser;
+        let tests = vec![
+            (
+                r#"
+            let h = {"name":"figaro"};
+            h["name"];
+             "#,
+                Object::Str("figaro".to_string()),
+            ),
+            (
+                r#"
+            let h = {1:"oh",3:"nagashima", 55:"matsui"};
+            h[55];
+             "#,
+                Object::Str("matsui".to_string()),
+            ),
+        ];
+        for (input, expected) in tests.into_iter() {
+            let ast = parser::parse_program(lexer::lex(&input)).unwrap();
+            match eval_program(ast) {
+                Ok(obj) => assert_eq!(expected, obj),
+                _ => panic!(),
+            }
+        }
+    }
+    #[test]
+    fn test_eval_hash() {
+        use lexer;
+        use parser;
+
+        let hash_literal = r#"
+            let two = "two";
+            let h = {
+                "one": 10 - 9,
+                two : 1 + 1,
+                "thr" + "ee": 6 / 2,
+                4:4,
+                true:5,
+                false:6
+            };
+             "#;
+        let tests = vec![
+            (format!("{}{}", hash_literal, "h[\"one\"];"), Object::Int(1)),
+            (format!("{}{}", hash_literal, "h[\"two\"];"), Object::Int(2)),
+            (
+                format!("{}{}", hash_literal, "h[\"three\"];"),
+                Object::Int(3),
+            ),
+            (format!("{}{}", hash_literal, "h[4];"), Object::Int(4)),
+            (format!("{}{}", hash_literal, "h[true];"), Object::Int(5)),
+            (format!("{}{}", hash_literal, "h[false];"), Object::Int(6)),
+        ];
+        for (input, expected) in tests.into_iter() {
+            let ast = parser::parse_program(lexer::lex(&input)).unwrap();
+            match eval_program(ast) {
+                Ok(obj) => assert_eq!(expected, obj),
+                _ => panic!(),
+            }
+        }
+    }
+    #[test]
+    fn test_eval_hash_ng() {
+        use lexer;
+        use parser;
+
+        let tests = vec![(
+            r#"
+            let h = {"name":1};
+            h["hoge"];
+             "#,
+            EvalError::NameError("".to_string()),
+        )];
+        for (input, _) in tests.into_iter() {
+            let ast = parser::parse_program(lexer::lex(&input)).unwrap();
+            match eval_program(ast) {
+                Ok(_) => panic!("expects failure, but success."),
+                Err(_) => { /* OK */ }
             }
         }
     }

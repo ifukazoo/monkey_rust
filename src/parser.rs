@@ -292,7 +292,7 @@ where
 
     let mut elements = Vec::new();
 
-    while !is_expected_peek(tokens, RBRACKET) {
+    while !is_expected_peek(tokens, RBRACE) {
         let key = parse_exp(tokens, Priority::LOWEST)?;
         expect_next(tokens, COLON)?;
         let val = parse_exp(tokens, Priority::LOWEST)?;
