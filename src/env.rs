@@ -6,13 +6,13 @@ use std::fmt;
 use std::rc::Rc;
 
 /// 環境参照
-pub type RefEnvironment = Rc<RefCell<Environment>>;
+pub type RefEnv = Rc<RefCell<Environment>>;
 
 /// 環境のマップ
 #[derive(Debug, PartialEq)]
 pub struct Environment {
     map: HashMap<String, Object>,
-    outer: Option<RefEnvironment>,
+    outer: Option<RefEnv>,
 }
 
 impl fmt::Display for Environment {
@@ -40,17 +40,17 @@ impl fmt::Display for Environment {
 }
 
 /// 新しい環境作成
-pub fn new_env(map: HashMap<String, Object>) -> RefEnvironment {
+pub fn new_env(map: HashMap<String, Object>) -> RefEnv {
     Rc::new(RefCell::new(Environment { map, outer: None }))
 }
 
 /// 値の格納
-pub fn set_value(env: &RefEnvironment, key: &str, value: Object) {
+pub fn set_value(env: &RefEnv, key: &str, value: Object) {
     env.borrow_mut().map.insert(key.to_string(), value);
 }
 
 /// 値の取得
-pub fn get_value(env: &RefEnvironment, key: &str) -> Option<Object> {
+pub fn get_value(env: &RefEnv, key: &str) -> Option<Object> {
     match env.borrow().map.get(key) {
         Some(v) => Some(v.clone()),
         // 外の環境を一階層再帰的に参照
@@ -63,7 +63,7 @@ pub fn get_value(env: &RefEnvironment, key: &str) -> Option<Object> {
 }
 
 /// この環境の外側に一階層環境を追加する.
-pub fn add_outer(env: &RefEnvironment, outer_env: &RefEnvironment) {
+pub fn add_outer(env: &RefEnv, outer_env: &RefEnv) {
     env.borrow_mut().outer = Some(outer_env.clone());
 }
 

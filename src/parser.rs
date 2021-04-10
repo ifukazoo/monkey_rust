@@ -41,8 +41,11 @@ lazy_static! {
         priority.insert(TokenKind::ASTERISK, Priority::PRODUCT);
         priority.insert(TokenKind::SLASH, Priority::PRODUCT);
 
-        // xxx(
+        // func(
+        // arr[
+        // hash[
         priority.insert(TokenKind::LPAREN, Priority::CALL);
+        priority.insert(TokenKind::LBRACKET, Priority::CALL);
 
         priority
     };
@@ -93,7 +96,6 @@ where
         Some(LET) => parse_let_stmt(tokens),
         Some(RETURN) => parse_return_stmt(tokens),
         Some(IF) => parse_if_stmt(tokens),
-        Some(LBRACE) => parse_block_stmt(tokens),
         Some(SEMICOLON) => {
             tokens.next().unwrap();
             Ok(Empty)
@@ -151,25 +153,12 @@ where
         Ok(If(IfStatement::new(
             iftoken,
             cond,
-            cons_block.statements,
-            Some(alt_block.statements),
+            cons_block,
+            Some(alt_block),
         )))
     } else {
-        Ok(If(IfStatement::new(
-            iftoken,
-            cond,
-            cons_block.statements,
-            None,
-        )))
+        Ok(If(IfStatement::new(iftoken, cond, cons_block, None)))
     }
-}
-
-fn parse_block_stmt<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Statement, ParseError>
-where
-    Tokens: Iterator<Item = Token>,
-{
-    let block = parse_block(tokens)?;
-    Ok(Block(block))
 }
 
 fn parse_exp<Tokens>(
@@ -187,6 +176,8 @@ where
         Some(STRING) => parse_str_exp(tokens),
         Some(IDENT) => parse_ident_exp(tokens),
         Some(LPAREN) => parse_group_exp(tokens),
+        Some(LBRACKET) => parse_array(tokens),
+        Some(LBRACE) => parse_hash(tokens),
         Some(FUNCTION) => parse_function_exp(tokens),
         Some(ILLEGAL) => return Err(ParseError::IllegalToken(tokens.next().unwrap())),
         Some(_) => return Err(ParseError::UnexpectedToken(tokens.next().unwrap())),
@@ -205,6 +196,7 @@ where
         }
         left = match next_kind {
             LPAREN => parse_call_exp(tokens, left)?,
+            LBRACKET => parse_index_exp(tokens, left)?,
             PLUS | MINUS | ASTERISK | SLASH | GT | LT | EQ | NOTEQ => {
                 parse_infix_exp(tokens, left, next_pri)?
             }
@@ -271,6 +263,49 @@ where
     expect_next(tokens, RPAREN)?;
     Ok(exp)
 }
+fn parse_array<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Expression, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    let token = expect_next(tokens, LBRACKET)?;
+
+    let mut elements = Vec::new();
+
+    while !is_expected_peek(tokens, RBRACKET) {
+        let exp = parse_exp(tokens, Priority::LOWEST)?;
+        elements.push(exp);
+        if let Some(COMMA) = peek_kind(tokens) {
+            tokens.next().unwrap();
+        } else {
+            break;
+        }
+    }
+    expect_next(tokens, RBRACKET)?;
+    Ok(Array(ArrayLiteral::new(token, elements)))
+}
+
+fn parse_hash<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Expression, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    let token = expect_next(tokens, LBRACE)?;
+
+    let mut elements = Vec::new();
+
+    while !is_expected_peek(tokens, RBRACE) {
+        let key = parse_exp(tokens, Priority::LOWEST)?;
+        expect_next(tokens, COLON)?;
+        let val = parse_exp(tokens, Priority::LOWEST)?;
+        elements.push((key, val));
+        if let Some(COMMA) = peek_kind(tokens) {
+            tokens.next().unwrap();
+        } else {
+            break;
+        }
+    }
+    expect_next(tokens, RBRACE)?;
+    Ok(Hash(HashLiteral::new(token, elements)))
+}
 
 fn parse_function_exp<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Expression, ParseError>
 where
@@ -290,9 +325,7 @@ where
     let block = parse_block(tokens)?;
 
     Ok(Expression::Function(FunctionLiteral::new(
-        token,
-        params,
-        block.statements,
+        token, params, block,
     )))
 }
 
@@ -336,6 +369,25 @@ where
     // left は identifier or 関数リテラル式
     Ok(Call(CallFunction::new(token, left, args)))
 }
+fn parse_index_exp<Tokens>(
+    tokens: &mut Peekable<Tokens>,
+    arr: Expression,
+) -> Result<Expression, ParseError>
+where
+    Tokens: Iterator<Item = Token>,
+{
+    // `[`の刈り取り
+    let token = expect_next(tokens, LBRACKET)?;
+
+    // インデックス値の刈り取り
+    let index = parse_exp(tokens, Priority::LOWEST)?;
+
+    // `]`の刈り取り
+    expect_next(tokens, RBRACKET)?;
+
+    // left は identifier or 関数リテラル式
+    Ok(Index(IndexAccess::new(token, arr, index)))
+}
 
 fn parse_infix_exp<Tokens>(
     tokens: &mut Peekable<Tokens>,
@@ -350,12 +402,12 @@ where
     Ok(Infix(InfixExpression::new(operator, left, right)))
 }
 
-fn parse_block<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<BlockStatement, ParseError>
+fn parse_block<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Vec<Statement>, ParseError>
 where
     Tokens: Iterator<Item = Token>,
 {
     // `{`の刈り取り
-    let token = expect_next(tokens, LBRACE)?;
+    expect_next(tokens, LBRACE)?;
 
     let mut statements = Vec::new();
 
@@ -367,7 +419,7 @@ where
     // `}`を刈り取る
     expect_next(tokens, RBRACE)?;
 
-    Ok(BlockStatement::new(token, statements))
+    Ok(statements)
 }
 
 fn parse_args<Tokens>(tokens: &mut Peekable<Tokens>) -> Result<Vec<Expression>, ParseError>
@@ -538,6 +590,15 @@ mod test {
     }
 
     #[test]
+    fn test_parse_hash_literal() {
+        let input = String::from("let x = {1:true};");
+        let result = lexer::lex(&input);
+        parse_let_stmt(&mut result.into_iter().peekable()).unwrap();
+        let ast = parse_program(lexer::lex(&input)).unwrap();
+        println!("{:?}", ast);
+    }
+
+    #[test]
     fn test_parse_return() {
         let input = String::from("return 1;");
         let result = lexer::lex(&input);
@@ -549,13 +610,6 @@ mod test {
     #[test]
     fn test_parse_if() {
         let input = String::from("if (true) { 1; } else { 2; }");
-        let result = lexer::lex(&input);
-        parse_program(result).unwrap();
-    }
-
-    #[test]
-    fn test_parse_blockstmt() {
-        let input = String::from("{1;}");
         let result = lexer::lex(&input);
         parse_program(result).unwrap();
     }

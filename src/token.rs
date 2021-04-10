@@ -20,6 +20,7 @@ pub enum TokenKind {
     NOTEQ,
 
     COMMA,
+    COLON,
     SEMICOLON,
 
     LPAREN,
@@ -27,6 +28,8 @@ pub enum TokenKind {
 
     LBRACE,
     RBRACE,
+    LBRACKET,
+    RBRACKET,
 
     FUNCTION,
     LET,

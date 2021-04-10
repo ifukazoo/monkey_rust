@@ -14,12 +14,10 @@ pub enum Statement {
     Let(LetStatement),
     /// 式文
     Exp(Expression),
-    /// return文
-    Return(Expression),
     /// if文
     If(IfStatement),
-    /// Block文
-    Block(BlockStatement),
+    /// return文
+    Return(Expression),
 }
 
 /// 式
@@ -33,6 +31,12 @@ pub enum Expression {
     Str(StringLiteral),
     /// 変数式
     Ident(Identifier),
+    /// 配列式
+    Array(ArrayLiteral),
+    /// ハッシュ式
+    Hash(HashLiteral),
+    /// インデックス式
+    Index(IndexAccess),
     /// 関数式
     Function(FunctionLiteral),
     /// 関数呼び出し式
@@ -95,18 +99,6 @@ impl fmt::Display for UnOp {
             Self::Negative => write!(f, "-"),
             Self::Not => write!(f, "!"),
         }
-    }
-}
-
-/// 複文
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BlockStatement {
-    token: Token,
-    pub statements: Vec<Statement>,
-}
-impl BlockStatement {
-    pub fn new(token: Token, statements: Vec<Statement>) -> Self {
-        BlockStatement { token, statements }
     }
 }
 
@@ -244,6 +236,48 @@ impl fmt::Display for FunctionLiteral {
     }
 }
 
+// 配列定義
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArrayLiteral {
+    token: Token,
+    pub elements: Vec<Expression>,
+}
+impl ArrayLiteral {
+    pub fn new(token: Token, elements: Vec<Expression>) -> Self {
+        Self { token, elements }
+    }
+}
+
+/// 配列/ハッシュインデックス
+/// arr[0], arr[1], ..., hash["key"], ...
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IndexAccess {
+    token: Token,
+    pub arr: Box<Expression>,
+    pub index: Box<Expression>,
+}
+impl IndexAccess {
+    pub fn new(token: Token, arr: Expression, index: Expression) -> Self {
+        Self {
+            token,
+            arr: Box::new(arr),
+            index: Box::new(index),
+        }
+    }
+}
+
+// ハッシュ定義
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HashLiteral {
+    token: Token,
+    pub keyvals: Vec<(Expression, Expression)>,
+}
+impl HashLiteral {
+    pub fn new(token: Token, keyvals: Vec<(Expression, Expression)>) -> Self {
+        Self { token, keyvals }
+    }
+}
+
 /// 前置演算子式
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrefixExpression {
@@ -309,7 +343,7 @@ pub struct CallFunction {
 }
 impl CallFunction {
     pub fn new(token: Token, func: Expression, args: Vec<Expression>) -> Self {
-        CallFunction {
+        Self {
             token,
             func: Box::new(func),
             args,

@@ -57,10 +57,13 @@ pub fn lex(input: &str) -> LexResult {
                 '/' => lex_a_char!(c, SLASH),
                 '<' => lex_a_char!(c, LT),
                 '>' => lex_a_char!(c, GT),
+                ':' => lex_a_char!(c, COLON),
                 ';' => lex_a_char!(c, SEMICOLON),
                 ',' => lex_a_char!(c, COMMA),
                 '{' => lex_a_char!(c, LBRACE),
                 '}' => lex_a_char!(c, RBRACE),
+                '[' => lex_a_char!(c, LBRACKET),
+                ']' => lex_a_char!(c, RBRACKET),
                 '(' => lex_a_char!(c, LPAREN),
                 ')' => lex_a_char!(c, RPAREN),
                 ' ' | '\n' | '\r' | '\t' => next_char!(),
@@ -212,14 +215,23 @@ mod test {
     #[test]
     fn test_lex() {
         use TokenKind::*;
-        let tests = vec![(
-            "ab = 1",
-            vec![
-                Token::new(IDENT, "ab", 0, 2),
-                Token::new(ASSIGN, "=", 3, 4),
-                Token::new(INT, "1", 5, 6),
-            ],
-        )];
+        let tests = vec![
+            (
+                "ab = 1",
+                vec![
+                    Token::new(IDENT, "ab", 0, 2),
+                    Token::new(ASSIGN, "=", 3, 4),
+                    Token::new(INT, "1", 5, 6),
+                ],
+            ),
+            (
+                "[ ]",
+                vec![
+                    Token::new(LBRACKET, "[", 0, 1),
+                    Token::new(RBRACKET, "]", 2, 3),
+                ],
+            ),
+        ];
         for (input, expecteds) in tests.iter() {
             let tokens = lex(input);
             assert_eq!(expecteds.len(), tokens.len());
