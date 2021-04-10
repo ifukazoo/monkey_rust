@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 /// ハッシュのキーとして許容する型
-#[derive(Debug, Clone, Eq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum HashKey {
     Int(i64),
     Bool(bool),
@@ -16,26 +16,6 @@ impl fmt::Display for HashKey {
             HashKey::Int(i) => write!(f, "{}", i),
             HashKey::Bool(b) => write!(f, "{}", b),
             HashKey::Str(s) => write!(f, "\"{}\"", s),
-        }
-    }
-}
-
-impl PartialEq for HashKey {
-    fn eq(&self, other: &Self) -> bool {
-        use HashKey::*;
-        match self {
-            Int(l) => match other {
-                Int(r) => l == r,
-                _ => false,
-            },
-            Bool(l) => match other {
-                Bool(r) => l == r,
-                _ => false,
-            },
-            Str(l) => match other {
-                Str(r) => l == r,
-                _ => false,
-            },
         }
     }
 }
