@@ -3,23 +3,6 @@ use crate::env::*;
 use std::collections::HashMap;
 use std::fmt;
 
-/// ハッシュのキーとして許容する型
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub enum HashKey {
-    Int(i64),
-    Bool(bool),
-    Str(String),
-}
-impl fmt::Display for HashKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            HashKey::Int(i) => write!(f, "{}", i),
-            HashKey::Bool(b) => write!(f, "{}", b),
-            HashKey::Str(s) => write!(f, "\"{}\"", s),
-        }
-    }
-}
-
 /// オブジェクト (monkey言語interpreterでの値)
 #[derive(Debug, Clone, PartialEq)]
 pub enum Object {
@@ -42,7 +25,6 @@ pub enum Object {
     /// NULL
     Null,
 }
-
 impl fmt::Display for Object {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -77,7 +59,24 @@ impl fmt::Display for Object {
     }
 }
 
-/// 関数定義
+/// ハッシュのキーとして許容する型
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub enum HashKey {
+    Int(i64),
+    Bool(bool),
+    Str(String),
+}
+impl fmt::Display for HashKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            HashKey::Int(i) => write!(f, "{}", i),
+            HashKey::Bool(b) => write!(f, "{}", b),
+            HashKey::Str(s) => write!(f, "\"{}\"", s),
+        }
+    }
+}
+
+/// クロージャー
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClosureVal {
     print: String,

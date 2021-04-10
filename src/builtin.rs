@@ -1,6 +1,7 @@
 use crate::eval::EvalError;
 use crate::object::Object;
 
+/// ビルトイン関数
 const FUNCTION_LEN: &str = "len";
 const FUNCTION_FIRST: &str = "first";
 const FUNCTION_LAST: &str = "last";
@@ -50,7 +51,7 @@ fn len(args: Vec<Object>) -> Result<Object, EvalError> {
 }
 
 // 配列へのビルトイン関数適用
-fn array_function<Func>(
+fn apply_arr_func<Func>(
     name: &str,
     args: &[Object],      // ビルトイン関数に与えられた引数
     req_param_num: usize, // 必要な引数の数
@@ -68,6 +69,7 @@ where
         )));
     }
     // ビルトイン関数の第一引数は配列とする．
+    // eg. first(arr), push(arr, elem), ...
     match args.first().unwrap() {
         Object::Array(arr) => apply(arr),
         _ => Err(EvalError::IllegalSyntax(format!(
@@ -78,7 +80,7 @@ where
 }
 fn first(args: Vec<Object>) -> Result<Object, EvalError> {
     let req_param_num = 1;
-    array_function("first()", &args, req_param_num, |arr| {
+    apply_arr_func("first()", &args, req_param_num, |arr| {
         if arr.is_empty() {
             Err(EvalError::IndexOutOfRange((0, 0)))
         } else {
@@ -88,7 +90,7 @@ fn first(args: Vec<Object>) -> Result<Object, EvalError> {
 }
 fn last(args: Vec<Object>) -> Result<Object, EvalError> {
     let req_param_num = 1;
-    array_function("last()", &args, req_param_num, |arr| {
+    apply_arr_func("last()", &args, req_param_num, |arr| {
         if arr.is_empty() {
             Err(EvalError::IndexOutOfRange((0, 0)))
         } else {
@@ -96,10 +98,9 @@ fn last(args: Vec<Object>) -> Result<Object, EvalError> {
         }
     })
 }
-
 fn rest(args: Vec<Object>) -> Result<Object, EvalError> {
     let req_param_num = 1;
-    array_function("rest()", &args, req_param_num, |arr| {
+    apply_arr_func("rest()", &args, req_param_num, |arr| {
         if arr.is_empty() {
             Err(EvalError::IllegalSyntax(
                 "rest() applied empty array.".to_string(),
@@ -113,8 +114,9 @@ fn rest(args: Vec<Object>) -> Result<Object, EvalError> {
 
 fn push(args: Vec<Object>) -> Result<Object, EvalError> {
     let req_param_num = 2;
-    array_function("push()", &args, req_param_num, |arr| {
+    apply_arr_func("push()", &args, req_param_num, |arr| {
         let mut new_arr = arr.clone();
+        // 追加する要素を第2引数から抜く
         let addend = args.get(1).unwrap().clone();
         new_arr.push(addend);
         Ok(Object::Array(new_arr))

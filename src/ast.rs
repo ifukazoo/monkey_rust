@@ -14,10 +14,10 @@ pub enum Statement {
     Let(LetStatement),
     /// 式文
     Exp(Expression),
-    /// return文
-    Return(Expression),
     /// if文
     If(IfStatement),
+    /// return文
+    Return(Expression),
 }
 
 /// 式
@@ -33,10 +33,10 @@ pub enum Expression {
     Ident(Identifier),
     /// 配列式
     Array(ArrayLiteral),
-    /// インデックス式
-    Index(IndexAccess),
     /// ハッシュ式
     Hash(HashLiteral),
+    /// インデックス式
+    Index(IndexAccess),
     /// 関数式
     Function(FunctionLiteral),
     /// 関数呼び出し式
@@ -249,6 +249,7 @@ impl ArrayLiteral {
 }
 
 /// 配列/ハッシュインデックス
+/// arr[0], arr[1], ..., hash["key"], ...
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IndexAccess {
     token: Token,

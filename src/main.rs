@@ -7,6 +7,6 @@ fn main() {
     let reader = io::BufReader::new(stdin);
     match interpreter::run(reader) {
         Ok(obj) => println!("{}", obj),
-        Err(e) => eprintln!("{}", e),
+        Err(e) => eprintln!("Error:{}", e),
     }
 }
