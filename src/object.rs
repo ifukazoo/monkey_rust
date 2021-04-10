@@ -30,7 +30,7 @@ pub enum Object {
     /// 文字列
     Str(String),
     /// クロージャー
-    Closure(ClosureValue),
+    Closure(ClosureVal),
     /// 配列
     Array(Vec<Object>),
     /// ハッシュ
@@ -79,19 +79,14 @@ impl fmt::Display for Object {
 
 /// 関数定義
 #[derive(Debug, Clone, PartialEq)]
-pub struct ClosureValue {
+pub struct ClosureVal {
     print: String,
     pub params: Vec<Identifier>,
     pub block: Vec<Statement>,
-    pub env: RefEnvironment,
+    pub env: RefEnv,
 }
-impl ClosureValue {
-    pub fn new(
-        print: &str,
-        params: Vec<Identifier>,
-        block: Vec<Statement>,
-        env: RefEnvironment,
-    ) -> Self {
+impl ClosureVal {
+    pub fn new(print: &str, params: Vec<Identifier>, block: Vec<Statement>, env: RefEnv) -> Self {
         Self {
             print: print.to_string(),
             params,
@@ -100,7 +95,7 @@ impl ClosureValue {
         }
     }
 }
-impl fmt::Display for ClosureValue {
+impl fmt::Display for ClosureVal {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "closure{{fn:{}}}", self.print)
     }

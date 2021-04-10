@@ -3,11 +3,11 @@ use crate::ast::Statement::*;
 use crate::ast::*;
 use crate::builtin;
 use crate::env;
-use crate::env::RefEnvironment;
 use crate::object;
-use crate::object::ClosureValue;
+use crate::object::ClosureVal;
 use crate::object::HashKey;
 use crate::object::Object;
+use env::RefEnv;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -60,7 +60,7 @@ pub fn eval_program(program: Program) -> Result<Object, EvalError> {
 }
 
 // 文の評価
-fn eval_statement(stmt: Statement, env: &RefEnvironment) -> Result<Object, EvalError> {
+fn eval_statement(stmt: Statement, env: &RefEnv) -> Result<Object, EvalError> {
     match stmt {
         Let(letstmt) => eval_letstatement(letstmt, env),
         Return(exp) => {
@@ -74,7 +74,7 @@ fn eval_statement(stmt: Statement, env: &RefEnvironment) -> Result<Object, EvalE
 }
 
 // 複数文の評価
-pub fn eval_statements(block: Vec<Statement>, env: &RefEnvironment) -> Result<Object, EvalError> {
+pub fn eval_statements(block: Vec<Statement>, env: &RefEnv) -> Result<Object, EvalError> {
     let mut result = Object::Null;
     for s in block {
         result = eval_statement(s, env)?;
@@ -86,13 +86,13 @@ pub fn eval_statements(block: Vec<Statement>, env: &RefEnvironment) -> Result<Ob
     Ok(result)
 }
 
-fn eval_letstatement(letstmt: LetStatement, env: &RefEnvironment) -> Result<Object, EvalError> {
+fn eval_letstatement(letstmt: LetStatement, env: &RefEnv) -> Result<Object, EvalError> {
     let val = eval_exp(*letstmt.exp, env)?;
     env::set_value(env, &letstmt.id.symbol(), val);
     Ok(Object::Null)
 }
 
-fn eval_ifstatement(ifstmt: IfStatement, env: &RefEnvironment) -> Result<Object, EvalError> {
+fn eval_ifstatement(ifstmt: IfStatement, env: &RefEnv) -> Result<Object, EvalError> {
     let cond = eval_exp(*ifstmt.cond, env)?;
     match cond {
         Object::Bool(b) => {
@@ -112,7 +112,7 @@ fn eval_ifstatement(ifstmt: IfStatement, env: &RefEnvironment) -> Result<Object,
 }
 
 // 式の評価
-fn eval_exp(exp: Expression, env: &RefEnvironment) -> Result<Object, EvalError> {
+fn eval_exp(exp: Expression, env: &RefEnv) -> Result<Object, EvalError> {
     match exp {
         Int(n) => Ok(Object::Int(n.value)),
         Bool(b) => Ok(Object::Bool(b.value)),
@@ -130,7 +130,7 @@ fn eval_exp(exp: Expression, env: &RefEnvironment) -> Result<Object, EvalError> 
         Prefix(pexp) => eval_prefix(pexp, env),
         Infix(exp) => eval_infix(exp, env),
 
-        Function(f) => Ok(Object::Closure(ClosureValue::new(
+        Function(f) => Ok(Object::Closure(ClosureVal::new(
             &f.to_string(),
             f.params,
             f.block,
@@ -140,7 +140,7 @@ fn eval_exp(exp: Expression, env: &RefEnvironment) -> Result<Object, EvalError> 
     }
 }
 
-fn eval_array_literal(l: ArrayLiteral, env: &RefEnvironment) -> Result<Object, EvalError> {
+fn eval_array_literal(l: ArrayLiteral, env: &RefEnv) -> Result<Object, EvalError> {
     let mut elems = vec![];
     for e in l.elements.into_iter() {
         let ev = eval_exp(e, &env)?;
@@ -148,7 +148,7 @@ fn eval_array_literal(l: ArrayLiteral, env: &RefEnvironment) -> Result<Object, E
     }
     Ok(Object::Array(elems))
 }
-fn eval_hash_literal(h: HashLiteral, env: &RefEnvironment) -> Result<Object, EvalError> {
+fn eval_hash_literal(h: HashLiteral, env: &RefEnv) -> Result<Object, EvalError> {
     let mut hash = HashMap::new();
     for (ke, ve) in h.keyvals.into_iter() {
         let key = match eval_exp(ke, env)? {
@@ -167,7 +167,7 @@ fn eval_hash_literal(h: HashLiteral, env: &RefEnvironment) -> Result<Object, Eva
     Ok(Object::Hash(hash))
 }
 
-fn eval_index(i: IndexAccess, env: &RefEnvironment) -> Result<Object, EvalError> {
+fn eval_index(i: IndexAccess, env: &RefEnv) -> Result<Object, EvalError> {
     match eval_exp(*i.arr, &env)? {
         Object::Array(arr) => eval_index_array(*i.index, arr, &env),
         Object::Hash(hash) => eval_index_hash(*i.index, hash, &env),
@@ -176,11 +176,7 @@ fn eval_index(i: IndexAccess, env: &RefEnvironment) -> Result<Object, EvalError>
         )),
     }
 }
-fn eval_index_array(
-    i: Expression,
-    a: Vec<Object>,
-    env: &RefEnvironment,
-) -> Result<Object, EvalError> {
+fn eval_index_array(i: Expression, a: Vec<Object>, env: &RefEnv) -> Result<Object, EvalError> {
     match eval_exp(i, &env)? {
         Object::Int(num) => {
             if num < 0 || num as usize > (a.len() - 1) {
@@ -198,7 +194,7 @@ fn eval_index_array(
 fn eval_index_hash(
     i: Expression,
     h: HashMap<HashKey, Object>,
-    env: &RefEnvironment,
+    env: &RefEnv,
 ) -> Result<Object, EvalError> {
     let key = match eval_exp(i, &env)? {
         Object::Int(key) => HashKey::Int(key),
@@ -216,7 +212,7 @@ fn eval_index_hash(
     }
 }
 
-fn eval_prefix(pexp: PrefixExpression, env: &RefEnvironment) -> Result<Object, EvalError> {
+fn eval_prefix(pexp: PrefixExpression, env: &RefEnv) -> Result<Object, EvalError> {
     use crate::ast::UnOp::*;
     let ope_str: String = pexp.operator.to_string();
     let val = eval_exp(*pexp.right, env)?;
@@ -234,7 +230,7 @@ fn eval_prefix(pexp: PrefixExpression, env: &RefEnvironment) -> Result<Object, E
     }
 }
 
-fn eval_calling_function(call: CallFunction, env: &RefEnvironment) -> Result<Object, EvalError> {
+fn eval_calling_function(call: CallFunction, env: &RefEnv) -> Result<Object, EvalError> {
     // クロージャー or ビルトイン関数を取り出す
     match eval_exp(*call.func, env)? {
         Object::Closure(closure) => eval_closure(closure, call.args, &env),
@@ -251,7 +247,7 @@ fn eval_calling_function(call: CallFunction, env: &RefEnvironment) -> Result<Obj
     }
 }
 
-fn eval_infix(exp: InfixExpression, env: &RefEnvironment) -> Result<Object, EvalError> {
+fn eval_infix(exp: InfixExpression, env: &RefEnv) -> Result<Object, EvalError> {
     use crate::ast::BinOp::*;
     let left = eval_exp(*exp.left, env)?;
     let right = eval_exp(*exp.right, env)?;
@@ -306,9 +302,9 @@ fn eval_infix(exp: InfixExpression, env: &RefEnvironment) -> Result<Object, Eval
 }
 
 fn eval_closure(
-    closure: ClosureValue,
+    closure: ClosureVal,
     args: Vec<Expression>,
-    env: &RefEnvironment,
+    env: &RefEnv,
 ) -> Result<Object, EvalError> {
     // 引数のチェック
     if closure.params.len() != args.len() {
@@ -334,11 +330,7 @@ fn eval_closure(
     eval_statements(closure.block, &new_env)
 }
 
-fn eval_builtin(
-    name: &str,
-    args: Vec<Expression>,
-    env: &RefEnvironment,
-) -> Result<Object, EvalError> {
+fn eval_builtin(name: &str, args: Vec<Expression>, env: &RefEnv) -> Result<Object, EvalError> {
     // 実引数の評価
     let mut evaluated_args = Vec::new();
     for arg in args.into_iter() {
